@@ -1,67 +1,253 @@
-# Template de démonstration
+# Eco-Devices RT2 pour Gladys
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Amène dans Gladys **jusqu’à trois Eco-Devices RT2 de GCE Electronics** par
+leur API JSON locale : les index de la téléinformation, des pinces
+ampèremétriques et des compteurs d’impulsions (eau, gaz, électricité), leurs
+relais, leurs entrées, les zones de fil pilote de leurs extensions X-4FP et
+leurs capteurs X-THL (température, humidité, luminosité).
+
+> Jamais testé avec un vrai appareil : écrit d’après la documentation de
+> l’API de GCE Electronics (« API Eco Devices RT », 2017), la bibliothèque
+> libre de l’intégration Home Assistant (pyecodevices_rt2) et les outils de
+> test de cce66. Dites-nous ce que vous voyez sur le vôtre. Sans lien avec
+> GCE Electronics.
+
+## Installation
+
+1. Dans l’Eco-Devices RT2, notez la **clé de l’API** (« apikey » par
+   défaut : changez-la). Si vous avez désactivé cette protection, laissez le
+   champ vide.
+2. Dans Gladys, Intégrations > Eco-Devices RT2 : saisissez l’adresse de
+   l’Eco-Devices (par ex. `192.168.1.60` ; donnez-lui une **adresse fixe**
+   dans votre box : ses appareils sont liés à cette adresse) et la clé. Sur
+   la même page :
+   - listez dans « Relais pilotables par Gladys » les relais que Gladys doit
+     piloter, et eux seulement (par ex. `R1` ; voir « Relais » plus bas :
+     jamais une pompe, une VMC, une gâche…) ;
+   - listez dans « Extensions » les X-4FP et X-THL branchés (par ex.
+     `FP1-FP4, THL1`) ;
+   - listez dans « Compteurs d’impulsions » ceux à amener, avec ce qu’ils
+     mesurent et l’unité de leur index dans l’Eco-Devices (par ex.
+     `C1:water:l, C2:gas:m3`).
+
+   Puis enregistrez.
+
+3. « Tester la connexion » lit l’Eco-Devices tout de suite (une fois un
+   intervalle passé depuis la dernière lecture) et montre ce qu’il a trouvé.
+4. Dans Découverte, créez les appareils voulus. Un relais listé arrive en
+   interrupteur (ou en lumière) ; les autres arrivent **en lecture seule**
+   (« État (lecture seule) ») : Gladys montre leur état, rien ne peut les
+   commuter.
+
+Un relais listé **après** sa création reste en lecture seule jusqu’à ce que
+vous cliquiez **« Mettre à jour »** sur lui dans Découverte : il reçoit alors
+son interrupteur (ou sa lumière), à côté de son « État (lecture seule) »,
+qui reste. L’état de l’intégration dit combien de relais sont en lecture
+seule tant qu’aucun n’est listé, et quels relais listés attendent encore
+« Mettre à jour ».
+
+L’Eco-Devices veut la clé dans l’adresse de chaque requête, en http simple :
+qui peut écouter votre réseau local peut la lire. La clé est gardée par
+Gladys dans sa base, jamais réaffichée, envoyée seulement à l’Eco-Devices, et
+jamais écrite dans les journaux ni dans les fichiers de l’intégration.
+
+L’adresse doit être celle d’un Eco-Devices RT2 : un autre produit GCE (un
+IPX800, par exemple) est reconnu à sa réponse et l’état le dit ; rien ne lui
+est envoyé, pas même un Arrêt (après un redémarrage non plus), et rien n’est
+publié, tant qu’un Eco-Devices RT2 n’y répond pas.
 
 ## Ce que vous obtenez
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+| Sur l’Eco-Devices RT2                   | Dans Gladys                                                        | Code (dans le nom) |
+| --------------------------------------- | ------------------------------------------------------------------ | ------------------ |
+| Index de téléinformation 1 à 7          | index d’énergie (kWh)                                              | `TI1`              |
+| Pince ampèremétrique 1 à 16             | index d’énergie (kWh)                                              | `TORE3`            |
+| Compteur d’impulsions 1 à 12 (si listé) | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
+| Relais 1 à 10 (2 + un X-8R)             | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
+| Entrée 1 à 12                           | une entrée binaire (lecture seule)                                 | `D3`               |
+| Zone d’un X-4FP (FP1 à FP8, si listée)  | fil pilote (Arrêt, Hors-gel, Éco, Confort, Confort -1, Confort -2) | `FP5`              |
+| X-THL 1 et 2 (si listé)                 | température (°C), humidité (%), luminosité (lux)                   | `THL1`             |
 
-## Configuration
+L’API répond pour les 10 relais et les 12 entrées, câblés ou non : tous sont
+proposés dans Découverte. La zone n de fil pilote est la zone z du X-4FP e :
+n = 4 × (e − 1) + z (deux X-4FP au plus). Un index de téléinformation ou de
+pince n’apparaît dans Découverte que s’il dépasse 0.
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+L’Eco-Devices est lu toutes les 15 secondes par défaut (5 s au moins) : les
+relais, puis les entrées, les zones (si listées), les X-THL (si listés) et
+les index, une requête après l’autre. Une valeur que l’Eco-Devices ne donne
+pas (absente, un texte, hors plage) n’est pas publiée : jamais comme 0. Si
+les relais ne peuvent pas être lus, la lecture entière est en échec ; si un
+autre groupe échoue, ses valeurs ne sont pas publiées cette fois et l’état
+le dit.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+## Index : jamais 0, jamais en baisse sans vos deux clics
 
-## Actions
+Gladys calcule la consommation et le coût à partir des écarts d’un index.
+Un index faux compterait d’un coup des milliers de kWh : chaque index passe
+par une garde.
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+- Un index à 0, absent ou illisible n’est **jamais** publié ; Gladys garde le
+  dernier.
+- Une **baisse** (compteur remplacé, remis à zéro) ou un **saut** que la
+  maison ne peut pas consommer (plus de 100 kW en moyenne depuis la dernière
+  valeur pour l’électricité, 10 m³/h pour l’eau, 16 m³/h pour le gaz, plus
+  une petite marge) est **retenu** : la dernière valeur acceptée reste,
+  l’état le montre (« Index retenu… »), et rien n’est compté. Ni le temps ni
+  la répétition ne le font accepter.
+- Pour l’accepter, vérifiez la valeur sur le compteur, puis cliquez **deux
+  fois** « Accepter l’index retenu » : le premier clic liste les index
+  retenus, le second (entre 3 s et 5 min après) les envoie à Gladys à la
+  lecture suivante, seulement s’ils n’ont pas changé entre-temps (sinon,
+  recommencez). Un saut accepté est compté une fois comme consommation ; une
+  baisse acceptée n’est pas comptée (Gladys ignore un écart négatif) et les
+  valeurs repartent de là.
+- La garde retient ses valeurs dans `/data` avec l’appareil Gladys auquel
+  elle appartient : un index retenu le reste après un redémarrage (pas son
+  acceptation), et un appareil supprimé puis recréé repart de la première
+  valeur lue.
+- Ses dates suivent l’horloge de la session (l’heure au démarrage plus le
+  temps écoulé mesuré) : un saut de l’horloge du système n’élargit pas sa
+  marge.
+- Si `/data` ne peut pas être écrit ou lu, aucun index n’est publié.
 
-## Scènes
+**Unités (à vérifier sur un vrai Eco-Devices)** : les index de
+téléinformation et de pince sont lus en Wh et publiés en kWh, comme le fait
+l’intégration Home Assistant ; un compteur d’impulsions est lu dans l’unité
+que vous indiquez. Un compteur dont vous changez le type reçoit une nouvelle
+fonctionnalité, qui repart de la première valeur lue.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+## Plusieurs Eco-Devices RT2
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+Gardez le premier dans les champs du haut, et mettez l’autre dans
+**« Eco-Devices RT2 n°2 »** (adresse avec `:port` si besoin, clé, relais
+pilotables, extensions, compteurs), un troisième dans « Eco-Devices RT2 n°3 ».
+Chacun a ses propres appareils dans Découverte (« Eco-Devices n°2 · Relais 1
+(R1) »), sa liste de relais pilotables et son état sur sa ligne. L’intervalle
+de lecture, l’option de chauffage et la langue sont communs. « Accepter
+l’index retenu » répond pour chacun.
 
-## Tableau de bord
+**Ne changez pas un emplacement d’Eco-Devices pour en essayer un autre** :
+les appareils déjà créés restent avec leur emplacement.
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+## Chaque Eco-Devices garde ses appareils
 
-## Dépannage
+L’API de l’Eco-Devices RT2 ne donne pas son adresse MAC (seuls ses fichiers
+d’état, protégés par le mot de passe utilisateur ou administrateur, la
+donnent). L’intégration retient donc, dans `/data`, **l’adresse et le port**
+de l’Eco-Devices auquel appartiennent les appareils de chaque emplacement.
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Si l’adresse ou le port de l’emplacement change, alors :
+
+- aucune commande ne part, pas même un Arrêt ;
+- les arrêts gardés pour l’ancienne adresse sont abandonnés ;
+- aucune valeur n’est publiée sur ces appareils, aucun index ;
+- la Découverte est vide pour cet emplacement ;
+- l’état le dit.
+
+Remettez alors l’ancienne adresse. Si l’Eco-Devices a **seulement changé
+d’adresse**, cliquez **deux fois** « Rattacher les appareils » (dans la
+minute), en choisissant l’emplacement : ses appareils pilotent alors
+l’Eco-Devices lu à la nouvelle adresse. Un emplacement sans aucun appareil
+créé prend simplement l’Eco-Devices qu’il lit.
+
+**Limite** : un autre Eco-Devices RT2 mis à la même adresse et au même port
+ne se distingue pas du premier. Si vous remplacez le boîtier, vérifiez les
+relais listés et les index (une baisse ou un saut sera retenu).
+
+Si `/data` ne peut pas être lu, seuls Arrêt et Hors-gel partent, vers
+l’adresse saisie, et aucun index n’est publié.
+
+## Relais : en lecture seule sauf ceux que vous listez
+
+Un relais que vous ne listez pas est **en lecture seule**. Pour en piloter
+un depuis Gladys, listez-le dans « Relais pilotables par Gladys », par ex.
+`R1, R2:light` (`:light` en fait une lumière, sinon un interrupteur), de
+préférence avant de le créer dans Découverte ; déjà créé, cliquez « Mettre à
+jour » sur lui dans Découverte. Un interrupteur ou une lumière obéit à tout
+« éteins tout » de Google, Alexa, du MCP et des scènes : n’y mettez jamais
+une pompe, un congélateur, une VMC, un chauffage, une gâche ni une vanne. Un
+relais retiré de la liste repasse aussitôt en lecture seule : ses commandes
+sont refusées, et une extinction que l’intégration tenait encore pour lui
+est abandonnée (en mémoire et dans `/data`, au redémarrage aussi). Son
+interrupteur reste sur l’appareil dans Gladys (sans effet) : Gladys ne
+supprime pas une fonctionnalité seule ; seule la suppression de l’appareil,
+puis sa recréation, l’enlève, avec son historique.
+
+## Fil pilote
+
+- **Arrêt** et **Hors-gel** n’ont besoin d’aucune option et passent avant
+  tout le reste : pendant une pause après des lectures en échec, avec une clé
+  refusée, avec la file de commandes pleine, et avant la première lecture
+  après un redémarrage (les zones viennent de la configuration). Cliqués, ils
+  interrompent toute requête en cours (une lecture, une relecture, une
+  commande, un renvoi), sauf un autre Arrêt ou Hors-gel cliqué juste avant.
+  De même pour l’extinction d’un relais que vous avez listé.
+- **Éco, Confort, Confort -1, Confort -2** pilotent le chauffage : ils sont
+  désactivés par défaut. Cochez « Autoriser Éco et Confort depuis Gladys »
+  pour les permettre ; tout utilisateur de Gladys, toute scène et
+  l’application Gladys peuvent alors les choisir. Ils sont refusés tant que
+  l’état ne peut pas être écrit dans `/data`.
+- La zone `00` de l’Eco-Devices (toutes les zones d’un coup) n’est jamais
+  utilisée.
+
+Un Arrêt ou un Hors-gel n’est refusé que si : l’adresse manque ou n’est pas
+valide, ou la clé n’est pas valide ; la zone n’est pas listée dans « Extensions » ; la valeur n’est pas
+l’un des six modes ; l’Eco-Devices n’est pas celui de l’appareil (autre
+adresse ou autre produit), ou rien ne permet de le savoir (voir « Chaque
+Eco-Devices garde ses appareils »). L’extinction d’un relais est refusée si
+le relais n’est pas listé.
+
+Cliqué avant que la configuration soit lue dans Gladys (la clé n’est gardée
+que là, jamais dans `/data`), un Arrêt la demande aussitôt à Gladys et
+attend 3 s ; si elle n’est pas venue, il est gardé en mémoire et envoyé dès
+qu’elle est lue (relue 5 s après, puis toutes les minutes au plus), avant
+tout envoi vers Gladys ; si la sortie s’avère inconnue ou non listée, l’état
+le dit. Un Arrêt gardé dans `/data` part de même au démarrage, sans attendre
+Gladys. Quand l’Eco-Devices ne le prend pas en 3,5 s (pas de connexion), il
+est gardé et renvoyé dès que l’Eco-Devices est libre, avant les relectures,
+par les lectures suivantes qui montrent un autre mode, et après un
+redémarrage. Un Arrêt cliqué pendant qu’un autre reste sans réponse depuis
+1 s l’interrompt. Un renvoi interrompu par un clic avant d’être parti repart
+juste derrière ce clic.
+
+Un Arrêt ou Hors-gel que les lectures ne montrent pas est renvoyé, 3 fois au
+plus ; puis l’état le dit (vérifiez sur place). Il reste tenu jusqu’à ce
+qu’une commande plus récente sur cette zone parte (votre clic), un autre
+Arrêt / Hors-gel, ou, une fois appliqué, un autre mode lu deux fois de suite
+(changé sur l’Eco-Devices lui-même, par sa page ou ses programmations) :
+jamais par le temps. Ce qui a été demandé avant un Arrêt sur la même zone et
+pas encore envoyé est annulé, y compris un Hors-gel qui attend un nouvel
+essai : rien ne part après lui. Un mode envoyé par l’intégration avant
+l’Arrêt et resté sans réponse (coupé par l’Arrêt, par exemple), si
+l’Eco-Devices l’applique quand même dans les 5 s après son départ, n’est pas
+un changement sur l’Eco-Devices : l’Arrêt est renvoyé.
+
+## Commandes
+
+Une commande est écrite dans les 3,5 s du clic ou refusée avec « rien n’a été
+envoyé ». Elle est ensuite relue sur l’Eco-Devices (les relais ou les zones) :
+la valeur demandée est un succès ; une autre valeur est « pas encore
+appliquée » ; pas de réponse à temps donne « envoyée, sans confirmation ».
+Deux lectures suivent, 5 s et 20 s après. Les commandes d’une scène sont
+écrites l’une après l’autre, puis relues une fois.
+
+## Pauses et refus
+
+Une lecture en échec met en pause 10 s, 30 s, 1 min, 2 min puis 5 min (une
+minute au moins quand l’Eco-Devices répond 429 ou 503), pause gardée au
+redémarrage ; Éco, Confort et l’allumage d’un relais sont refusés jusqu’à la
+fin de la pause. Une clé refusée par l’Eco-Devices (401, 403) arrête les
+lectures jusqu’à ce que vous changiez la clé ou que « Tester la connexion »
+aboutisse. Tant qu’un Eco-Devices ne répond pas (ou refuse la clé, ou n’est
+pas un Eco-Devices RT2), ses appareils quittent la Découverte ; un Scan ne les
+y remet pas. Ils reviennent à la première lecture réussie.
+
+## Limites
+
+- Index (téléinformation, pinces, compteurs), relais, entrées, X-4FP et
+  X-THL seulement : la puissance instantanée, les postes et sous-postes, les
+  prix, les sorties virtuelles et EnOcean ne sont pas dans cette version.
+- Trois Eco-Devices au plus par intégration.
+- Reconnu par son adresse et son port (voir plus haut).
+- http seulement (l’Eco-Devices répond en http sur le réseau local).
