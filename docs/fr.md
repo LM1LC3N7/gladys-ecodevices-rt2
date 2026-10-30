@@ -63,8 +63,12 @@ commande), nomme un autre produit, l’état le dit, plus rien n’est envoyé �
 cette adresse, pas même un Arrêt, ni après un redémarrage (c’est gardé dans
 `/data`), et rien n’est publié, tant qu’une lecture n’y trouve pas un
 Eco-Devices RT2. Une commande partie juste avant cette réponse l’a peut-être
-été vers l’autre produit : son accusé le dit. Une réponse sans `product`
-n’est jamais prise pour un Eco-Devices RT2.
+été vers l’autre produit : son accusé le dit. Une lecture sans `product`
+n’est jamais prise pour un Eco-Devices RT2 : l’état dit « sa réponse n’a pas
+de champ product » (dites-le-nous si vous le voyez). Une réponse d’écriture
+`"status": "Success"` sans `product` est acceptée : le produit vient d’être
+vérifié par la lecture faite juste avant, et la relecture confirme la
+valeur.
 
 ## Ce que vous obtenez
 
@@ -179,9 +183,12 @@ relais listés et les index (une baisse ou un saut sera retenu).
   les appareils. Seuls Arrêt et Hors-gel partent, vers l’adresse saisie ;
   aucun index n’est publié ; « Rattacher les appareils » est refusé (il ne
   serait gardé nulle part) ; l’état le dit.
-- Perdu mais inscriptible (fichier supprimé alors que des appareils
-  existent) : rien n’est envoyé, pas même un Arrêt, jusqu’à « Rattacher les
-  appareils » (deux clics), qui est alors gardé.
+- Perdu mais inscriptible (fichier supprimé ou vidé alors que des appareils
+  existent, Gladys restauré sur une nouvelle machine) : l’identité d’un
+  Eco-Devices est l’adresse saisie, rien ne prouve un autre boîtier. Arrêt et
+  Hors-gel partent vers l’adresse saisie ; Marche, Éco, Confort et les
+  valeurs attendent « Rattacher les appareils » (deux clics), qui est alors
+  gardé ; l’état le dit.
 - Une lecture ou une écriture de `/data` qui ne finit pas compte comme un
   échec au bout de 2 s : les lectures continuent, l’état le dit, aucun index
   n’est publié.
@@ -222,9 +229,10 @@ puis sa recréation, l’enlève, avec son historique.
 Un Arrêt ou un Hors-gel n’est refusé que si : l’adresse manque ou n’est pas
 valide, ou la clé n’est pas valide ; la zone n’est pas listée dans
 « Extensions » ; la valeur n’est pas l’un des six modes ; l’Eco-Devices n’est
-pas celui de l’appareil (autre adresse, ou un autre produit GCE a répondu),
-ou rien ne permet de le savoir (`/data` perdu, voir « Chaque Eco-Devices
-garde ses appareils »). L’extinction d’un relais est refusée si le relais
+pas celui de l’appareil (autre adresse que celle des appareils, ou un autre
+produit GCE a répondu) ; l’emplacement a la même adresse qu’un autre (il
+n’est pas lu). Un `/data` illisible, jamais inscriptible ou perdu ne
+l’empêche pas (voir « Chaque Eco-Devices garde ses appareils »). L’extinction d’un relais est refusée si le relais
 n’est pas listé. Avant de partir, il attend 1 s au plus la lecture qui
 vérifie le produit (voir plus haut). Si l’Eco-Devices refuse la clé, l’Arrêt
 est gardé et renvoyé dès qu’une nouvelle clé est enregistrée ou que

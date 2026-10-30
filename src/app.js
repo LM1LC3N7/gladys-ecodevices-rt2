@@ -1812,8 +1812,12 @@ export class Rt2App {
       case 'same':
         return true;
       case 'unbound':
-        // /data unreadable or never written: owner unknown, the Offs go to the address typed.
-        return protective && this.ownerUnknown;
+        // No owner known (/data unreadable, never written, or lost: a file deleted, a Gladys
+        // restored on a new machine): the identity of an Eco-Devices IS the address typed, so
+        // nothing proves another box there. Off and Frost protection go to it (another product
+        // is still refused, by the product read before each write, and a slot with the address
+        // of another one is never read); the rest waits for "Attach the devices".
+        return protective;
       default:
         return false;
     }

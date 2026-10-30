@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { controllerKey } from '../src/config.js';
-import { TIMINGS } from '../src/constants.js';
+import { PILOT, TIMINGS } from '../src/constants.js';
 import { memoryStore } from '../src/store.js';
 import { fakeRt2 } from './helpers/fakeRt2.js';
 import { CONFIG, F, SECOND, boundMemory, created, setup } from './helpers/app.js';
@@ -112,23 +112,53 @@ test('/data unreadable: no owner set over it, an Off goes, a switch-on waits for
   app.stop();
 });
 
-test('/data lost (a fresh file) with devices there: not bound to whatever answers, Attach asked', async () => {
+test('I5 (d3): /data lost but writable, devices there: Off and Frost go, the rest waits for Attach', async () => {
+  const devices = [switchOf('r1'), created('pilot-wire', 'fp1')];
+  const world = fakeRt2();
+  world.R[1] = 1;
+  world.FP[1] = 'Confort';
+  const { app, gladys, store, start, cmd, wait, states } = await setup({
+    config: { ...CONFIG, relays: 'R1', extensions: 'FP1', allow_heating_modes: true },
+    devices,
+    world,
+    fresh: true,
+  });
+  // Before the first round: the Off goes to the address typed.
+  const early = cmd(devices[0], F('relay', 'r1', 'switch'), 0);
+  await start();
+  assert.equal((await early).success, true);
+  assert.equal(world.R[1], 0);
+  assert.equal(store.data.owner, null, 'not bound to whatever answers');
+  assert.match(message(gladys), /not known to belong to the Eco-Devices read.*only Off and Frost/);
+  const on = await cmd(devices[0], F('relay', 'r1', 'switch'), 1);
+  assert.equal(on.success, false);
+  assert.match(on.error, /Rattacher les appareils/);
+  const comfort = await cmd(devices[1], F('pilot-wire', 'fp1', 'mode'), PILOT.COMFORT);
+  assert.equal(comfort.success, false);
+  const frost = await cmd(devices[1], F('pilot-wire', 'fp1', 'mode'), PILOT.FROST_PROTECTION);
+  assert.equal(frost.success, true, frost.error);
+  assert.equal(world.FP[1], 'Hors Gel');
+  await wait(15 * SECOND);
+  assert.equal(states(F('relay', 'r1', 'switch')).length, 0, 'no value until Attach');
+  assert.ok(!world.writes().some((w) => /SetR=01|SetFP01=0/.test(w.path)));
+  await gladys.fake.action('attach_devices', { box: '1' });
+  await gladys.fake.action('attach_devices', { box: '1' });
+  assert.ok(store.data.owner, 'the relink kept in /data');
+  assert.equal((await cmd(devices[0], F('relay', 'r1', 'switch'), 1)).success, true);
+  app.stop();
+});
+
+test('I5: a slot with the address of another one never sends, an Off neither', async () => {
   const device = switchOf('r1');
-  const { app, gladys, store, start, cmd, world } = await setup({
-    config: { ...CONFIG, relays: 'R1' },
+  const { app, cmd, world } = await setup({
+    config: { ...CONFIG, relays: 'R1', duplicate_of: 2 },
     devices: [device],
     fresh: true,
   });
-  await start();
-  assert.equal(store.data.owner, null);
-  assert.match(message(gladys), /not known to belong to the Eco-Devices read/);
-  for (const value of [0, 1]) {
-    assert.equal((await cmd(device, F('relay', 'r1', 'switch'), value)).success, false);
-  }
-  assert.equal(world.writes().length, 0);
-  await gladys.fake.action('attach_devices', { box: '1' });
-  await gladys.fake.action('attach_devices', { box: '1' });
-  assert.equal((await cmd(device, F('relay', 'r1', 'switch'), 1)).success, true);
+  await app.connected({ ...CONFIG, relays: 'R1', duplicate_of: 2 });
+  const off = await cmd(device, F('relay', 'r1', 'switch'), 0);
+  assert.equal(off.success, false);
+  assert.equal(world.requests.length, 0);
   app.stop();
 });
 

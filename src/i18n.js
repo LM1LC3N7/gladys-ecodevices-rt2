@@ -137,6 +137,11 @@ export function reasonOf(err) {
       return both('the Eco-Devices answered an error', 'l’Eco-Devices a répondu une erreur');
     case 'bad_response':
       return both('not an Eco-Devices answer', 'pas une réponse d’Eco-Devices');
+    case 'no_product':
+      return both(
+        'its answer has no "product" field (expected "EcoDevices_RT")',
+        'sa réponse n’a pas de champ « product » (attendu « EcoDevices_RT »)',
+      );
     case 'wrong_product':
       return both('another GCE product answers', 'un autre produit GCE répond');
     default:
@@ -298,8 +303,8 @@ export const T = {
     ),
   notAttached: (slot) =>
     both(
-      `The devices of Eco-Devices #${slot} are not known to belong to the Eco-Devices read (the state in /data was lost): none of their commands is sent. If they are its own, click "Attach the devices" twice.`,
-      `Rien ne dit que les appareils de l’Eco-Devices n°${slot} appartiennent à l’Eco-Devices lu (l’état de /data a été perdu) : aucune de leurs commandes n’est envoyée. Si ce sont les siens, cliquez deux fois « Rattacher les appareils ».`,
+      `The devices of Eco-Devices #${slot} are not known to belong to the Eco-Devices read (the state in /data was lost): only Off and Frost protection are sent, to the address typed; no other command, no value until you click "Attach the devices" twice (if they are its own).`,
+      `Rien ne dit que les appareils de l’Eco-Devices n°${slot} appartiennent à l’Eco-Devices lu (l’état de /data a été perdu) : seuls Arrêt et Hors-gel sont envoyés, à l’adresse saisie ; aucune autre commande, aucune valeur tant que vous n’avez pas cliqué deux fois « Rattacher les appareils » (si ce sont les siens).`,
     ),
   ownerUnwritable: both(
     'The state cannot be written to /data and holds nothing yet: which Eco-Devices the devices belong to is unknown. Only Off and Frost protection are sent, to the address typed, until /data can be written.',
@@ -490,8 +495,8 @@ export const ERRORS = {
   ),
   notAttached: (slot) =>
     both(
-      `It is not known that this device belongs to the Eco-Devices read (Eco-Devices #${slot}, see its status): nothing was sent.`,
-      `Rien ne dit que cet appareil appartient à l’Eco-Devices lu (Eco-Devices n°${slot}, voir son état) : rien n’a été envoyé.`,
+      `It is not known that this device belongs to the Eco-Devices read (Eco-Devices #${slot}, see its status and "Attach the devices"): nothing was sent (Off and Frost protection still are).`,
+      `Rien ne dit que cet appareil appartient à l’Eco-Devices lu (Eco-Devices n°${slot}, voir son état et « Rattacher les appareils ») : rien n’a été envoyé (Arrêt et Hors-gel le sont quand même).`,
     ),
   saveFailed: both(
     'The state could not be written to /data: nothing was sent.',

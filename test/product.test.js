@@ -139,7 +139,8 @@ test('an answer without "product" is never taken for an Eco-Devices RT2', async 
   const { app, start, gladys } = await setup({ world });
   await start();
   assert.equal(gladys.fake.connectionStatus.connected, false);
-  assert.match(message(gladys), /not an Eco-Devices answer/);
+  assert.match(message(gladys), /its answer has no "product" field \(expected "EcoDevices_RT"\)/);
+  assert.match(message(gladys, 'fr'), /pas de champ « product »/);
   app.stop();
 });
 
@@ -211,5 +212,50 @@ test('a command whose product read does not answer: nothing sent, said', async (
   assert.equal(on.success, false);
   assert.match(on.error, /rien n’a été envoyé/);
   assert.equal(world.writes().length, 0);
+  app.stop();
+});
+
+test('R12: a lone On 2 s after a round, an IPX800 now at the address: never reaches it', async () => {
+  const devices = devicesOf();
+  const world = fakeRt2();
+  const { app, start, cmd, wait } = await setup({ world, devices, config: CFG });
+  await start();
+  await wait(2 * SECOND);
+  world.product = 'IPX800_V4';
+  const before = world.writes().length;
+  const on = await cmd(devices[1], F('relay', 'r2', 'switch'), 1);
+  assert.equal(on.success, false);
+  assert.deepEqual(writesTo(world, before), []);
+  assert.ok(TIMINGS.productTolerance <= 250);
+  app.stop();
+});
+
+test('R24: the product read answered 503: the On is refused, nothing sent', async () => {
+  const devices = devicesOf();
+  const world = fakeRt2();
+  const { app, start, cmd, wait } = await setup({ world, devices, config: CFG });
+  await start();
+  await wait(2 * SECOND);
+  world.failGroups.set('R', 503);
+  const on = await cmd(devices[1], F('relay', 'r2', 'switch'), 1);
+  assert.equal(on.success, false);
+  assert.match(on.error, /rien n’a été envoyé/);
+  assert.equal(world.writes().length, 0);
+  app.stop();
+});
+
+test('m2: write answers without "product" (reads have it): applied and confirmed, no error said', async () => {
+  const devices = devicesOf();
+  const world = fakeRt2();
+  world.R[1] = 1;
+  world.noWriteProduct = true;
+  const { app, start, cmd, gladys } = await setup({ world, devices, config: CFG });
+  await start();
+  const off = await cmd(devices[0], F('relay', 'r1', 'switch'), 0);
+  const on = await cmd(devices[1], F('relay', 'r2', 'switch'), 1);
+  assert.equal(off.success, true, off.error);
+  assert.equal(on.success, true, on.error);
+  assert.deepEqual([world.R[1], world.R[2]], [0, 1]);
+  assert.equal(gladys.fake.connectionStatus.connected, true);
   app.stop();
 });

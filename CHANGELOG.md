@@ -29,5 +29,9 @@ the notes of the version's GitHub Release.
   and clamp indexes held back until their unit is confirmed; a counter whose
   unit changes stops its index; /data never writable lets the Offs go;
   /data waits bounded; one address in one slot only; clearer acks.
+- Review r2: with /data lost (a Gladys restored elsewhere), Off and Frost
+  protection go to the address typed, the rest waits for "Attach the
+  devices"; a write answer without "product" is taken after the product
+  read; a read without it is named in the status.
 
 [Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/commits/main

@@ -177,7 +177,10 @@ function respond(world, record) {
     if (world.failGroups.has(group)) return json({}, world.failGroups.get(group));
     return json(answerOf(world, group));
   }
-  const ok = { product: world.product, status: 'Success' };
+  // `noWriteProduct`: a firmware whose write answers carry no `product`.
+  const ok = world.noWriteProduct
+    ? { status: 'Success' }
+    : { product: world.product, status: 'Success' };
   for (const [name, value] of params) {
     let m;
     if (name === 'SetR' || name === 'ClearR') {

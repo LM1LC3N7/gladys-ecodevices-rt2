@@ -163,7 +163,8 @@ be checked on his boxes. Asked as raw answers (with the key removed).
   Discover empty, the waiting commands refused, until a round reads an RT2
   there; an outage of that box does not lift it. A write answered by another
   product acks "sent, but another GCE product answered". Cost: one more
-  request per click (a scene of 5 at 600 ms a request passes, 700 ms not:
+  request per burst of clicks (the clicks within 250 ms of a read share it),
+  not per click (a scene of 5 at 600 ms a request passes, 700 ms not:
   the last one "too slow", nothing sent). Found on the way: two clicked Offs
   queued together (after the shared product read) did not get the 1 s
   "stuck" cut of the first; the lane now arms it when the first one starts.
@@ -187,3 +188,23 @@ be checked on his boxes. Asked as raw answers (with the key removed).
   (`rt24:`...) gets a plain refusal. **m3**: an Off answered 401 says it is
   kept and sent again with the new key. **m4**: a test per surviving mutant
   (`test/guards.test.js`). **m5**: manifest, README and guides.
+
+## Decisions after the review r2 (2026-10-30)
+
+- **I5 (rule I-4 of the ED3 r2)**: no owner known and devices there, /data
+  writable (a file deleted or emptied, Gladys restored on a new machine):
+  Off and Frost protection go to the address typed (the identity of an RT2
+  is its address, nothing proves another box); On, Eco, Comfort and the
+  values wait for "Attach the devices"; the status says so. Refused only on
+  proof: another product (the product read), a slot with the address of
+  another one (never read).
+- **m1**: tests for R12 (the 250 ms tolerance), R24 (a failed product read
+  refuses the command) and X4 (the generation of the first click).
+- **m2**: a write answered `"status": "Success"` without `product` is taken
+  (the product was just proven by the read before it, the read back
+  confirms); another `product` still stops everything. A read without
+  `product` fails with its own reason, said in the status ("its answer has
+  no product field"), for cce66 to report.
+- Scenes on one slow RT2 (review r2, p-scene): 5/5 at 650 ms a request, 4/5
+  at 700 ms, 3/5 at 900 ms (the last ones "too slow", nothing sent; Offs
+  all go): accepted (one box, one request at a time, 3.5 s budget).

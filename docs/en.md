@@ -58,7 +58,11 @@ the status says so, nothing more is sent to that address, not even an Off,
 not after a restart either (kept in `/data`), and nothing is published, until
 a read finds an Eco-Devices RT2 there. A command that left just before that
 answer may have reached the other product: its ack says so. An answer
-without `product` is never taken for an Eco-Devices RT2.
+without `product` to a read is never taken for an Eco-Devices RT2: the
+status says "its answer has no product field" (tell us if you see it). A
+write answered `"status": "Success"` without `product` is taken: the product
+was checked by the read right before it, and the read back confirms the
+value.
 
 ## What you get
 
@@ -166,9 +170,11 @@ and the indexes (a drop or a jump will be held back).
   Frost protection leave, to the address typed; no index is published;
   "Attach the devices" is refused (it would be kept nowhere); the status says
   so.
-- Lost but writable (the file deleted while devices exist): nothing is sent,
-  not even an Off, until "Attach the devices" (two clicks), which is then
-  kept.
+- Lost but writable (the file deleted or emptied while devices exist, Gladys
+  restored on a new machine): the identity of an Eco-Devices is the address
+  typed, nothing proves another box. Off and Frost protection leave to the
+  address typed; On, Eco, Comfort and the values wait for "Attach the
+  devices" (two clicks), which is then kept; the status says so.
 - A read or a write of `/data` that does not end counts as failed after 2 s:
   the reads go on, the status says so, no index is published.
 
@@ -204,8 +210,10 @@ deleting the device, then creating it again, removes it, with its history.
 An Off or a Frost protection is refused only when: the address is missing or
 not valid, or the key is not valid; the zone is not listed in "Extensions";
 the value is not one of the six modes; the Eco-Devices is not the device's
-(another address, or another GCE product answered), or nothing tells (`/data`
-lost, see "Each Eco-Devices keeps its devices"). Switching a relay off is
+(another address than the devices', or another GCE product answered); the
+slot has the address of another slot (it is not read). A `/data` unreadable,
+never writable or lost does not stop it (see "Each Eco-Devices keeps its
+devices"). Switching a relay off is
 refused when the relay is not listed. Before it leaves, it waits 1 s at most
 for the read that checks the product (see above). When the Eco-Devices
 refuses the key, the Off is kept and sent again as soon as a new key is saved

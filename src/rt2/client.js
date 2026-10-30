@@ -215,6 +215,9 @@ export class Rt2Client {
       err.product = envelope.product;
       throw err;
     }
+    // A write answered `"status": "Success"` without `product`: the product was proven by the
+    // read right before it (the gate of src/app.js), and the read back confirms the value.
+    if (envelope.error === 'no_product' && json.status === 'Success') return;
     if (envelope.error || json.status !== 'Success') {
       throw new Rt2Error('not_success', 'the Eco-Devices did not confirm the write', {
         sent: true,

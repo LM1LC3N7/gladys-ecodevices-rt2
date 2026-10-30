@@ -285,3 +285,16 @@ test('K4 / K5: the limits of the index guard; a counter without unit takes the f
   );
   void PILOT;
 });
+
+test('X4: a first click of "Accept" never counts in another session (the generation checked)', async () => {
+  const { app, gladys, wait } = await held();
+  await gladys.fake.action('accept_held_index', {});
+  await wait(4 * SECOND);
+  // A new session began (stop() moves the generation before the reset of the start clears
+  // the first click): the second click lists again, never accepts.
+  app.generation += 1;
+  const second = app.acceptHeld();
+  assert.doesNotMatch(second.en, /Accepted/);
+  assert.match(second.en, /Held back/);
+  app.stop();
+});
