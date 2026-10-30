@@ -46,17 +46,26 @@ http: anyone who can watch your local network can read it. The key is kept
 by Gladys in its database, never shown again, sent only to the Eco-Devices,
 and never written in the logs nor in the files of the integration.
 
-The address must be an Eco-Devices RT2's: another GCE product (an IPX800,
-say) is recognised by its answer and the status says so; nothing is sent to
-it, not even an Off (after a restart neither), and nothing is published,
-until an Eco-Devices RT2 answers there.
+The address must be an Eco-Devices RT2's. An IPX800 V4 speaks the same API
+(the same relay and pilot-wire commands): before each command, the
+integration reads the relays (`Get=R`) and checks that the answer comes from
+an Eco-Devices RT2 (`"product": "EcoDevices_RT"`), unless such a read left
+since the click (or 250 ms before it). A command waits for that read within
+its 3.5 s; an Off or a Frost protection waits 1 s at most, then leaves anyway
+when it does not answer (a read without answer proves no other product). As
+soon as any answer (a read, a read back, a command) names another product,
+the status says so, nothing more is sent to that address, not even an Off,
+not after a restart either (kept in `/data`), and nothing is published, until
+a read finds an Eco-Devices RT2 there. A command that left just before that
+answer may have reached the other product: its ack says so. An answer
+without `product` is never taken for an Eco-Devices RT2.
 
 ## What you get
 
 | On the Eco-Devices RT2                | In Gladys                                                        | Code (in the name) |
 | ------------------------------------- | ---------------------------------------------------------------- | ------------------ |
-| Teleinformation index 1 to 7          | energy index (kWh)                                               | `TI1`              |
-| Current clamp 1 to 16                 | energy index (kWh)                                               | `TORE3`            |
+| Teleinformation index 1 to 7          | not yet (see "Units" below)                                      | `TI1`              |
+| Current clamp 1 to 16                 | not yet (see "Units" below)                                      | `TORE3`            |
 | Pulse counter 1 to 12 (when listed)   | water or gas index (m³), or energy index (kWh)                   | `C1`               |
 | Relay 1 to 10 (2 + an X-8R)           | read only, or a switch / light when you list it                  | `R3`               |
 | Input 1 to 12                         | a binary input (read only)                                       | `D3`               |
@@ -65,8 +74,7 @@ until an Eco-Devices RT2 answers there.
 
 The API answers for the 10 relays and the 12 inputs, wired or not: all of
 them are offered in Discover. Pilot-wire zone n is zone z of the X-4FP e:
-n = 4 × (e − 1) + z (two X-4FP at most). A teleinformation or clamp index
-shows in Discover only when it is above 0.
+n = 4 × (e − 1) + z (two X-4FP at most).
 
 The Eco-Devices is read every 15 seconds by default (5 s at least): the
 relays, then the inputs, the zones (when listed), the X-THL (when listed) and
@@ -101,11 +109,18 @@ a guard.
   measured time since): a jump of the system clock never widens its margin.
 - When `/data` cannot be written or read, no index is published.
 
-**Units (to check on a real Eco-Devices)**: the teleinformation and clamp
-indexes are read in Wh and published in kWh, as the Home Assistant
-integration does; a pulse counter is read in the unit you give. A counter
-whose type you change gets a new feature, which starts from the first value
-read.
+**Units.** The unit of the teleinformation and clamp indexes (Wh or kWh) is
+confirmed by no sure source (the code of the Home Assistant integration says
+Wh, the example of its documentation kWh, the GCE documentation nothing). A
+factor of 1000 corrected later would be a jump counted once as consumption:
+these indexes are therefore **neither offered nor published** until a real
+Eco-Devices confirms it; the status says how many were read. A pulse counter
+is read in the unit you give: compare the first value published with the
+meter. A counter whose **type** you change gets a new feature, which starts
+from the first value read. If you change its **unit** after its index was
+published, the index is no longer published at all (its values would be 1000
+times off those of Gladys) and the status says so: put the unit back, or
+delete the device and create it again (its history starts over).
 
 ## Several Eco-Devices RT2
 
@@ -144,8 +159,18 @@ without any device created simply takes the Eco-Devices it reads.
 be told from the first one. If you replace the box, check the relays listed
 and the indexes (a drop or a jump will be held back).
 
-When `/data` cannot be read, only Off and Frost protection leave, to the
-address typed, and no index is published.
+**`/data`.**
+
+- Unreadable, or never writable (no file, devices there, and the first write
+  fails): which Eco-Devices the devices belong to is unknown. Only Off and
+  Frost protection leave, to the address typed; no index is published;
+  "Attach the devices" is refused (it would be kept nowhere); the status says
+  so.
+- Lost but writable (the file deleted while devices exist): nothing is sent,
+  not even an Off, until "Attach the devices" (two clicks), which is then
+  kept.
+- A read or a write of `/data` that does not end counts as failed after 2 s:
+  the reads go on, the status says so, no index is published.
 
 ## Relays: read only unless you list them
 
@@ -179,9 +204,12 @@ deleting the device, then creating it again, removes it, with its history.
 An Off or a Frost protection is refused only when: the address is missing or
 not valid, or the key is not valid; the zone is not listed in "Extensions";
 the value is not one of the six modes; the Eco-Devices is not the device's
-(another address or another product), or nothing tells (see "Each
-Eco-Devices keeps its devices"). Switching a relay off is refused when the
-relay is not listed.
+(another address, or another GCE product answered), or nothing tells (`/data`
+lost, see "Each Eco-Devices keeps its devices"). Switching a relay off is
+refused when the relay is not listed. Before it leaves, it waits 1 s at most
+for the read that checks the product (see above). When the Eco-Devices
+refuses the key, the Off is kept and sent again as soon as a new key is saved
+or "Test the connection" succeeds; its ack says so.
 
 Clicked before the configuration is read from Gladys (the key is kept there
 only, never in `/data`), an Off asks Gladys for it at once and waits 3 s;
@@ -212,8 +240,10 @@ A command is written within 3.5 s of the click or refused with "nothing was
 sent". It is then read back on the Eco-Devices (the relays or the zones): the
 value asked is a success; another value is "not applied yet"; no answer in
 time gives "sent, without confirmation". Two reads follow, 5 s and 20 s
-later. The commands of a scene are written one after the other, then read
-back once.
+later. The commands of a scene are written one after the other, after one
+read of the product, then read back once. On an Eco-Devices taking 600 ms a
+request, a scene of 5 commands goes through whole; slower, the last ones are
+refused "too slow" (nothing sent).
 
 ## Pauses and refusals
 
@@ -228,9 +258,10 @@ that succeeds.
 
 ## Limits
 
-- Indexes (teleinformation, clamps, counters), relays, inputs, X-4FP and
-  X-THL only: the instant power, the posts and sub-posts, the prices, the
+- Pulse counters, relays, inputs, X-4FP and X-THL only (the
+  teleinformation and clamp indexes wait for their unit to be confirmed): the instant power, the posts and sub-posts, the prices, the
   virtual outputs and EnOcean are not in this version.
 - Three Eco-Devices at most per integration.
-- Known by its address and port (see above).
+- Known by its address and port (see above). One address in two slots: the
+  second is not read, the status says so.
 - http only (the Eco-Devices answers over http on the local network).

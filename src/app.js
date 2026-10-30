@@ -70,6 +70,7 @@ import {
   FP_CODE,
   GUARD_LIMITS,
   KINDS,
+  UNIT_CONFIRMED,
   LIMITS,
   LIMITS_RT2,
   PROTECTIVE_MODES,
@@ -139,7 +140,7 @@ function lastValueOf(device, featureId) {
 }
 
 /** The errors of a secondary group after which the round goes on (its targets unread). */
-const STOPPING = ['cut', 'busy'];
+const STOPPING = ['cut', 'busy', 'wrong_product'];
 
 export class Rt2App {
   constructor({
@@ -185,6 +186,8 @@ export class Rt2App {
     this.configGeneration = 0;
     this.memory = emptyMemory();
     this.storeUnreadable = false;
+    /** No file, devices there, and the first save failed: owner unknown (see startNow). */
+    this.storeLost = false;
     this.saveFailed = false;
     this.client = undefined;
     this.generation = 0;
@@ -241,6 +244,12 @@ export class Rt2App {
     this.meterMeta = new Map();
     /** code -> the held value last logged (a hold is logged once). */
     this.heldLogged = new Map();
+    /** Counters whose unit changed after their index was published: never published again. */
+    this.unitChanged = new Set();
+    /** Teleinformation and clamp indexes read above 0, not offered (unit to confirm). */
+    this.unconfirmedIndexes = 0;
+    /** The monotonic time of the last read an Eco-Devices RT2 answered (its product). */
+    this.productAt = undefined;
     /** The first click of "Accept the held index": { at, listedAt, list, generation }. */
     this.pendingAccept = undefined;
   }
@@ -437,9 +446,9 @@ export class Rt2App {
     let loaded = null;
     this.storeUnreadable = false;
     try {
-      loaded = await this.store.load();
+      loaded = await this.bounded(this.store.load());
     } catch (err) {
-      // Not the same as empty: nothing is written over it until it reads again.
+      // Not the same as empty (a read that never ends neither): nothing is written over it until it reads again.
       this.storeUnreadable = true;
       this.logger.warn(`ecodevices-rt2: /data unreadable (${err?.code ?? 'error'})`);
     }
@@ -451,6 +460,14 @@ export class Rt2App {
       this.meterGuard(code, saved.feature);
     }
     if (!this.memory.salt && !this.storeUnreadable) this.memory.salt = this.random();
+    // No file, devices there, and /data cannot be written (never could, say): the owner of the
+    // devices is not known, as with a file that cannot be read (Offs still go, to the address
+    // typed). Taken from gladys-ipx800 (review r3, I2).
+    this.storeLost = false;
+    if (loaded === null && !this.storeUnreadable && this.createdDevices().length > 0) {
+      this.storeLost = !(await this.saveMemory());
+      if (generation !== this.generation) return;
+    }
     if (this.ownPublisher) this.publisher.start();
     const missing = this.configMessage();
     if (missing) {
@@ -491,7 +508,7 @@ export class Rt2App {
     if (generation !== this.generation) return;
     if (this.refusedApplies()) {
       await this.setStatus(false, T.refused);
-    } else if (this.verdict === 'different' || this.verdict === 'unbound') {
+    } else if (this.wrongProduct || this.verdict === 'different' || this.verdict === 'unbound') {
       // Known before any read: said at once, not at the next round.
       await this.setStatus(false, this.statusMessage());
     } else {
@@ -642,9 +659,13 @@ export class Rt2App {
     this.meterMeta.clear();
     this.heldLogged.clear();
     this.pendingAccept = undefined;
+    this.unitChanged.clear();
+    this.unconfirmedIndexes = 0;
+    this.productAt = undefined;
   }
 
   configMessage() {
+    if (this.config.duplicateOf !== undefined) return T.duplicateSlot(this.config.duplicateOf);
     if (this.config.addressError === 'path') return T.addressPath;
     if (this.config.addressError === 'https') return T.addressHttps;
     if (this.config.addressError === 'invalid') return T.addressInvalid;
@@ -679,10 +700,11 @@ export class Rt2App {
         });
       }
     }
-    // A counter given another type or unit: its guard starts again from Gladys and /data.
+    // A counter given another type or unit: its guard is built again from /data (another type:
+    // a new feature, its own reference; another unit: never published again, see meterGuard).
     if (JSON.stringify([...next.counters]) !== JSON.stringify([...previous.counters])) {
       for (const code of [...this.meterGuards.keys()]) {
-        if (code.startsWith('c')) this.forgetMeter(code);
+        if (code.startsWith('c')) this.unloadMeter(code);
       }
     }
     if (this.dropUnlistedGuards()) {
@@ -746,6 +768,7 @@ export class Rt2App {
       meters[code] = {
         feature: meta.feature,
         ...(meta.device ? { device: meta.device } : {}),
+        ...(meta.unit ? { unit: meta.unit } : {}),
         ...guard.state(),
       };
     }
@@ -761,8 +784,12 @@ export class Rt2App {
     if (this.storeUnreadable) {
       // Read again first: what it holds is never overwritten unseen.
       try {
-        const loaded = normalizeMemory(await this.store.load(), this.now());
+        const loaded = normalizeMemory(await this.bounded(this.store.load()), this.now());
         this.storeUnreadable = false;
+        if (loaded.foreign && loaded.foreign.key === this.config.key) {
+          this.memory.foreign = loaded.foreign;
+          this.wrongProduct ??= loaded.foreign.product;
+        }
         // The owner, its salt and the index states are the file's: none was set meanwhile.
         this.memory.owner = loaded.owner;
         this.memory.salt = loaded.salt || this.memory.salt || this.random();
@@ -784,7 +811,10 @@ export class Rt2App {
     }
     this.syncMemory();
     try {
-      await this.store.save(this.memory);
+      // Bounded: a write that never ends is a failed one (the rounds, the test button and the
+      // index guards never wait for it longer).
+      await this.bounded(this.store.save(this.memory));
+      this.storeLost = false;
       if (this.saveFailed) {
         this.saveFailed = false;
         this.logger.info('ecodevices-rt2: /data written again');
@@ -799,6 +829,20 @@ export class Rt2App {
       }
       return false;
     }
+  }
+
+  /** A /data operation, failed when not done within TIMINGS.storeWait. */
+  bounded(promise) {
+    let timer;
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = this.timers.setTimeout(
+          () => reject(Object.assign(new Error('/data too slow'), { code: 'ETIMEDOUT' })),
+          TIMINGS.storeWait,
+        );
+      }),
+    ]).finally(() => this.timers.clearTimeout(timer));
   }
 
   async flush() {
@@ -898,9 +942,11 @@ export class Rt2App {
     }
     const gone = () => generation !== this.generation;
     this.lastReadAt = mono;
-    // Kept BEFORE the read: a restart during it never reads again sooner.
+    // Kept BEFORE the read: a restart during it never reads again sooner. While /data fails,
+    // not awaited (bounded anyway): a broken disk never slows the reads.
     this.memory.lastAttemptAt = this.now();
-    await this.saveMemory();
+    if (this.saveFailed) this.saveMemory().catch(() => {});
+    else await this.saveMemory();
     if (gone()) return;
     let result;
     try {
@@ -923,15 +969,98 @@ export class Rt2App {
   }
 
   /** One group read, its envelope checked: the JSON. Throws an Rt2Error. */
-  async readGroup(client, query, priority, hooks) {
-    const json = await client.read(query, priority, hooks);
+  async readGroup(client, query, priority, hooks = {}) {
+    let sentAt;
+    const json = await client.read(query, priority, {
+      ...hooks,
+      onSent: () => {
+        sentAt = this.monotonic();
+        hooks.onSent?.();
+      },
+    });
     const envelope = checkEnvelope(json);
     if (envelope.error) {
       const err = new Rt2Error(envelope.error, 'not an Eco-Devices RT2 answer', { sent: true });
-      if (envelope.product) err.product = envelope.product;
+      if (envelope.product) {
+        err.product = envelope.product;
+        // Any answer naming another product (a round, a read back, a follow-up, a secondary
+        // group): nothing more goes to that address, at once.
+        if (client === this.client) this.markForeign(envelope.product);
+      }
       throw err;
     }
+    // An Eco-Devices RT2 answered a read that left at `sentAt`: the proof the writes wait for.
+    if (client === this.client && sentAt !== undefined) {
+      this.productAt = Math.max(this.productAt ?? -Infinity, sentAt);
+    }
     return json;
+  }
+
+  /**
+   * Another GCE product answers at the address (an IPX800 V4 takes the same commands): no
+   * command, no Off, from now on and after a restart (kept in /data for that address), until a
+   * round reads an Eco-Devices RT2 there; the commands waiting are refused.
+   */
+  markForeign(product) {
+    const first = !this.wrongProduct;
+    this.wrongProduct = product ?? '?';
+    this.memory.foreign = { key: this.config.key, product: this.wrongProduct };
+    this.productAt = undefined;
+    for (const job of this.commands.splice(0)) job.reject(this.refusal(ERRORS.wrongProduct));
+    if (first) {
+      this.logger.warn('ecodevices-rt2: another GCE product answers at this address');
+      this.saveMemory().catch(() => {});
+      this.setStatus(false, T.wrongProduct(this.wrongProduct)).catch(() => {});
+      this.publishDevices().catch(() => {});
+    }
+  }
+
+  /**
+   * Before a write: an Eco-Devices RT2 answered a read that left after `since` (the click), or
+   * a `Get=R` is sent now (shared by the commands waiting for one). Another product: refused,
+   * nothing sent. A command waits for the answer within its time to send; a protective one
+   * 1 s at most, then leaves anyway (unreadable is never "another product").
+   */
+  async productGate(client, since, protective, sendBy) {
+    if (this.wrongProduct) throw this.refusal(ERRORS.wrongProduct);
+    if (this.productAt !== undefined && this.productAt >= since) return;
+    const deadline = protective
+      ? Math.min(this.monotonic() + TIMINGS.productCheck, sendBy)
+      : sendBy;
+    let timer;
+    try {
+      if (client !== this.client) throw new Rt2Error('late', 'the connection was closed');
+      const read = this.readBack(
+        READS.RELAYS,
+        protective ? PRIORITY.GUARD : PRIORITY.COMMAND,
+        deadline,
+        { after: since },
+      );
+      // A read shared with a later deadline never holds the caller past its own.
+      await Promise.race([
+        read,
+        new Promise((_, reject) => {
+          timer = this.timers.setTimeout(
+            () => reject(new Rt2Error('timeout', 'no answer in time')),
+            Math.max(0, deadline - this.monotonic()),
+          );
+        }),
+      ]);
+    } catch (err) {
+      if (this.wrongProduct || (err instanceof Rt2Error && err.code === 'wrong_product')) {
+        throw this.refusal(ERRORS.wrongProduct);
+      }
+      if (!protective) {
+        throw this.refusal(
+          err instanceof Rt2Error && err.code === 'late'
+            ? ERRORS.late(0)
+            : ERRORS.notSent(reasonOf(err)),
+        );
+      }
+    } finally {
+      this.timers.clearTimeout(timer);
+    }
+    if (this.wrongProduct) throw this.refusal(ERRORS.wrongProduct);
   }
 
   /**
@@ -1020,10 +1149,18 @@ export class Rt2App {
     for (let n = 1; n <= LIMITS_RT2.ti; n += 1) codes.push(`ti${n}`);
     for (let n = 1; n <= LIMITS_RT2.tore; n += 1) codes.push(`tore${n}`);
     for (let n = 1; n <= LIMITS_RT2.counters; n += 1) codes.push(`c${n}`);
+    let unconfirmed = 0;
     for (const code of codes) {
       const counter = code.startsWith('c');
       const raw = json ? Object.getOwnPropertyDescriptor(json, indexKey(code))?.value : undefined;
       const meter = meterOf(code, raw, this.config.counters);
+      if (!counter && !UNIT_CONFIRMED.ti_tore) {
+        // The unit of the teleinformation and clamp indexes (Wh or kWh) rests on one source:
+        // never offered nor published until a real Eco-Devices confirms it (a factor 1000
+        // corrected later would be a jump the core counts once).
+        if (meter?.value !== undefined) unconfirmed += 1;
+        continue;
+      }
       const wanted = counter
         ? this.config.counters.has(code) || created.has(code)
         : (meter?.value !== undefined && json !== undefined) || created.has(code);
@@ -1037,6 +1174,7 @@ export class Rt2App {
         at,
       });
     }
+    if (json !== undefined) this.unconfirmedIndexes = unconfirmed;
     return out;
   }
 
@@ -1059,8 +1197,11 @@ export class Rt2App {
       if (at !== undefined) this.applyRead(at);
     }
     const meterStates = this.meterStates();
-    // The index states go to Gladys only once /data holds their guards.
-    const saved = await this.saveMemory();
+    // The index states go to Gladys only once /data holds their guards. While /data fails, the
+    // save is tried without waiting (no index this round): a broken disk never holds a round.
+    let saved = false;
+    if (this.saveFailed) this.saveMemory().catch(() => {});
+    else saved = await this.saveMemory();
     if (saved) for (const [id, state] of meterStates) this.publisher.push(id, state);
     await this.setStatus(this.statusConnected(), this.statusMessage());
     await this.publishDevices();
@@ -1079,11 +1220,9 @@ export class Rt2App {
       this.failures += 1;
       this.setPause(mono, wait, 'failed');
       this.offline = true;
-      this.wrongProduct = err.product ?? '?';
       // Kept: after a restart, nothing goes to that address before a round reads an RT2 there.
-      this.memory.foreign = { key: this.config.key, product: this.wrongProduct };
+      this.markForeign(err.product);
       this.lastReason = T.wrongProductReason(this.wrongProduct);
-      this.logger.warn('ecodevices-rt2: another GCE product answers at this address');
       await this.saveMemory();
       await this.setStatus(false, T.wrongProduct(this.wrongProduct));
       await this.publishDevices();
@@ -1125,11 +1264,12 @@ export class Rt2App {
 
   /** Connected for Gladys, and its values published onto the devices: the Eco-Devices of the devices. */
   statusConnected() {
-    return this.verdict === 'same';
+    return this.verdict === 'same' && !this.wrongProduct;
   }
 
   /** The counts and the warnings of the last round. */
   statusMessage() {
+    if (this.wrongProduct) return T.wrongProduct(this.wrongProduct);
     if (this.verdict === 'different' || this.verdict === 'unbound') {
       return join(
         this.verdictMessage(),
@@ -1174,8 +1314,17 @@ export class Rt2App {
     }
     const held = this.heldList();
     if (held.length > 0) parts.push(T.held(held));
+    if (this.unitChanged.size > 0) {
+      parts.push(T.unitChanged(listOf([...this.unitChanged].map(shownCode))));
+    }
+    if (this.unconfirmedIndexes > 0) parts.push(T.unitsUnconfirmed(this.unconfirmedIndexes));
     if (this.saveFailed || this.storeUnreadable) parts.push(T.storeProblem);
     return join(...parts);
+  }
+
+  /** /data cannot be read, or cannot be written while it holds nothing: owner unknown. */
+  get ownerUnknown() {
+    return this.storeUnreadable || this.storeLost;
   }
 
   /**
@@ -1358,29 +1507,40 @@ export class Rt2App {
     if (!client || !target || guard.inFlight || !this.mayDrive(true)) return;
     guard.inFlight = true;
     let again = false;
-    this.write(client, target, guard.value, priority, {
-      deadline,
-      beforeSend: () => {
-        // A newer command that left meanwhile (or another protective one): never sent over it.
-        if (
-          this.guards.get(guard.code) !== guard ||
-          (guard.kind === KINDS.RELAY && !this.config.relays.has(guard.code))
-        ) {
-          throw new Rt2Error('late', 'superseded');
-        }
-        // Another Eco-Devices found meanwhile: an Off kept for the old one never reaches it.
-        if (!this.mayDrive(true)) throw new Rt2Error('late', 'not the Eco-Devices of the devices');
-      },
-      onSent: () => {
-        // Counted once it has left (a try that never left is not a resend).
-        guard.resends += 1;
-        guard.sentAt = this.monotonic();
-      },
-    })
+    // The product first, unless a read showed an Eco-Devices RT2 a moment ago (a restart with
+    // an IPX800 V4 now at the address: the Off kept never reaches it).
+    const since = this.monotonic() - TIMINGS.productFresh;
+    const gate =
+      this.productAt !== undefined && this.productAt >= since
+        ? Promise.resolve()
+        : this.productGate(client, since, true, deadline);
+    gate
+      .then(() =>
+        this.write(client, target, guard.value, priority, {
+          deadline,
+          beforeSend: () => {
+            // A newer command that left meanwhile (or another protective one): never sent over it.
+            if (
+              this.guards.get(guard.code) !== guard ||
+              (guard.kind === KINDS.RELAY && !this.config.relays.has(guard.code))
+            ) {
+              throw new Rt2Error('late', 'superseded');
+            }
+            // Another Eco-Devices found meanwhile: an Off kept for the old one never reaches it.
+            if (!this.mayDrive(true))
+              throw new Rt2Error('late', 'not the Eco-Devices of the devices');
+          },
+          onSent: () => {
+            // Counted once it has left (a try that never left is not a resend).
+            guard.resends += 1;
+            guard.sentAt = this.monotonic();
+          },
+        }),
+      )
       .catch((err) => {
         again = err instanceof Rt2Error && err.code === 'cut' && !err.sent;
         this.logger.warn(
-          `ecodevices-rt2: ${shownCode(guard.code)} sent again: ${errorReason(err)}`,
+          `ecodevices-rt2: ${shownCode(guard.code)} sent again: ${err instanceof Rt2Error ? errorReason(err) : 'not sent (not an Eco-Devices RT2)'}`,
         );
       })
       .finally(() => {
@@ -1410,8 +1570,10 @@ export class Rt2App {
     const featureId = idsOf(this.gladys, KINDS.METER, code).feature(feature);
     if (!(device.features ?? []).some((f) => f?.external_id === featureId)) return undefined;
     const key = deviceKeyOf(device);
+    const unit = this.unitOf(code);
     const meta = this.meterMeta.get(code);
     if (meta && (meta.device !== key || meta.feature !== feature)) this.forgetMeter(code);
+    else if (meta && meta.unit !== unit) this.unloadMeter(code);
     if (!this.meterGuards.has(code)) {
       let saved = this.memory.meters[code];
       if (saved && (saved.feature !== feature || (saved.device && key && saved.device !== key))) {
@@ -1419,19 +1581,49 @@ export class Rt2App {
         delete this.memory.meters[code];
         saved = undefined;
       }
+      if (saved?.unit !== undefined && saved.unit !== unit) {
+        // The unit of the index changed for a feature already published: its values would be
+        // 1000 times off the ones Gladys holds (a jump counted once if accepted). Never
+        // published again: the device must be created again (or the unit put back).
+        this.unitChanged.add(code);
+        return undefined;
+      }
+      this.unitChanged.delete(code);
       const known = lastValueOf(device, featureId);
       const mono = this.monotonic();
       this.meterGuards.set(
         code,
         new IndexGuard(known, saved, this.sessionAt(mono), GUARD_LIMITS[feature]),
       );
-      this.meterMeta.set(code, { device: key, feature });
+      this.meterMeta.set(code, { device: key, feature, unit });
     }
     return this.meterGuards.get(code);
   }
 
+  /** The unit an index is read in (a counter: its configuration). */
+  unitOf(code) {
+    return code.startsWith('c') ? this.config.counters.get(code)?.unit : 'wh';
+  }
+
+  /** A guard out of memory, its state (with its unit) kept in /data. */
+  unloadMeter(code) {
+    const guard = this.meterGuards.get(code);
+    const meta = this.meterMeta.get(code);
+    if (guard && meta) {
+      this.memory.meters[code] = {
+        feature: meta.feature,
+        ...(meta.device ? { device: meta.device } : {}),
+        ...(meta.unit ? { unit: meta.unit } : {}),
+        ...guard.state(),
+      };
+    }
+    this.meterGuards.delete(code);
+    this.meterMeta.delete(code);
+  }
+
   /** The index state of a meter forgotten (memory; saved by the caller). */
   forgetMeter(code) {
+    this.unitChanged.delete(code);
     this.meterGuards.delete(code);
     this.meterMeta.delete(code);
     this.heldLogged.delete(code);
@@ -1562,7 +1754,7 @@ export class Rt2App {
   /** Before any read: from /data and the configuration only. */
   verdictAtStart() {
     const owner = this.memory.owner;
-    if (this.storeUnreadable || !owner) return 'unbound';
+    if (this.ownerUnknown || !owner) return 'unbound';
     return owner.id === this.config.key ? 'same' : 'different';
   }
 
@@ -1570,8 +1762,9 @@ export class Rt2App {
   judge() {
     const owner = this.memory.owner;
     const key = this.config.key;
-    // /data unreadable is not empty: no owner is set over it (protective commands only).
-    if (this.storeUnreadable) return 'unbound';
+    // /data unreadable (or never written) is not empty: no owner is set over it (protective
+    // commands only).
+    if (this.ownerUnknown) return 'unbound';
     const hasDevices = this.createdDevices().length > 0;
     const bind = (why) => {
       this.memory.owner = { kind: 'address', id: key };
@@ -1619,7 +1812,8 @@ export class Rt2App {
       case 'same':
         return true;
       case 'unbound':
-        return protective && this.storeUnreadable;
+        // /data unreadable or never written: owner unknown, the Offs go to the address typed.
+        return protective && this.ownerUnknown;
       default:
         return false;
     }
@@ -1631,13 +1825,14 @@ export class Rt2App {
       case 'different':
         return ERRORS.otherBox(this.slot);
       default:
-        return this.storeUnreadable ? ERRORS.saveFailed : ERRORS.notAttached(this.slot);
+        return this.ownerUnknown ? ERRORS.ownerUnknown : ERRORS.notAttached(this.slot);
     }
   }
 
   verdictMessage() {
     if (this.verdict === 'different') return T.otherBox(this.slot);
     if (this.storeUnreadable) return T.ownerUnreadable;
+    if (this.storeLost) return T.ownerUnwritable;
     return T.notAttached(this.slot);
   }
 
@@ -1652,7 +1847,8 @@ export class Rt2App {
       return T.attach.notRead;
     }
     if (this.verdict === 'same') return T.attach.already(this.slot);
-    if (this.storeUnreadable) return T.storeProblem;
+    // Kept nowhere (until the next restart only): refused, said.
+    if (this.ownerUnknown || this.saveFailed) return T.storeProblem;
     const mono = this.monotonic();
     const id = this.config.key;
     const count = this.createdDevices().length;
@@ -1700,7 +1896,13 @@ export class Rt2App {
    */
   async publishDevices() {
     const devices = [];
-    if (this.round && !this.offline && this.verdict === 'same' && !this.refusedApplies()) {
+    if (
+      this.round &&
+      !this.offline &&
+      !this.wrongProduct &&
+      this.verdict === 'same' &&
+      !this.refusedApplies()
+    ) {
       const created = new Map();
       for (const device of this.createdDevices()) created.set(device.external_id, device);
       for (const target of this.model.values()) {
@@ -1867,6 +2069,10 @@ export class Rt2App {
         record.answered = !(
           err instanceof Rt2Error && ['cut', 'timeout', 'network'].includes(err.code)
         );
+        // Another product took it (an IPX800 V4 at the address): nothing more goes there.
+        if (err instanceof Rt2Error && err.code === 'wrong_product' && client === this.client) {
+          this.markForeign(err.product);
+        }
       },
     );
     return written;
@@ -2074,6 +2280,15 @@ export class Rt2App {
       }
       if (generation !== this.generation) throw this.refusal(ERRORS.unknownTarget);
     }
+    // An Eco-Devices RT2 must have answered a read that left after the click (an IPX800 V4 at
+    // the address would take the same command).
+    await this.productGate(
+      client,
+      job.received - TIMINGS.productTolerance,
+      false,
+      job.received + TIMINGS.commandSendBy,
+    );
+    this.checkBeforeSend(job, generation, client);
     let left = false;
     let writtenAt;
     const restoreGuard = () => {
@@ -2128,7 +2343,8 @@ export class Rt2App {
       return this.refusal(ERRORS.notSent(reasonOf(err)));
     }
     if (err.code === 'refused') return this.refusal(ERRORS.keyRefused);
-    if (['not_success', 'http', 'busy', 'wrong_product'].includes(err.code)) {
+    if (err.code === 'wrong_product') return this.refusal(ERRORS.sentToOther(err.product ?? '?'));
+    if (['not_success', 'http', 'busy'].includes(err.code)) {
       return this.refusal(ERRORS.rejected);
     }
     return this.refusal(ERRORS.unconfirmed);
@@ -2224,6 +2440,17 @@ export class Rt2App {
       `ecodevices-rt2: ${shownCode(code)} -> ${describe(target.kind, wanted).en} (protective)`,
     );
     const sendBy = received + TIMINGS.commandSendBy;
+    // The product first (a `Get=R` that left after the click, 1 s at most): another GCE
+    // product proven gets nothing, not kept; no answer in time, the Off leaves anyway.
+    try {
+      await this.productGate(client, received - TIMINGS.productTolerance, true, sendBy);
+    } catch (err) {
+      guard.inFlight = false;
+      guard.userInFlight = false;
+      if (this.guards.get(code) === guard) this.guards.delete(code);
+      this.saveMemory().catch(() => {});
+      throw err;
+    }
     let left = false;
     let lastError;
     const first = this.monotonic();
@@ -2291,6 +2518,11 @@ export class Rt2App {
     }
     this.afterWrite(generation, groupOf(target.kind));
     if (lastError) {
+      // The key refused by the box: the Off stays held and leaves again as soon as a new key
+      // is saved or the test button succeeds (said, never "nothing was sent").
+      if (lastError instanceof Rt2Error && lastError.code === 'refused') {
+        throw this.refusal(ERRORS.protectiveKeptRefused);
+      }
       throw this.commandError(lastError, true, 0);
     }
     // Its read back is cut by any later Off clicked; it never waits for the other commands.

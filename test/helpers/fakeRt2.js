@@ -85,6 +85,8 @@ export function fakeRt2(options = {}) {
   };
   world.TORE[1] = 456_789;
   world.C[1] = 123_456;
+  world.C[3] = 12_345_678;
+  world.C[4] = 456_789;
   return world;
 }
 
@@ -153,7 +155,13 @@ async function transport(
 
 function respond(world, record) {
   let next = world.queue.shift();
-  if (typeof next === 'function') next = next(record);
+  if (typeof next === 'function') {
+    const fn = next;
+    next = fn(record);
+    // A function that does not answer this request waits for the next one (the product read
+    // a write is preceded by never takes the answer meant for the write).
+    if (next === undefined) world.queue.unshift(fn);
+  }
   if (next instanceof Error) return next;
   if (next) return json(next.json ?? {}, next.status ?? 200);
   const url = new URL(record.path, 'http://rt2');

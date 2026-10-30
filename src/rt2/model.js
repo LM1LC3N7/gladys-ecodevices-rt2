@@ -49,21 +49,22 @@ export function cleanName(raw) {
 
 /**
  * The envelope of an answer: `{ ok: true }`, or `{ error }`:
- * `bad_response` (no object), `wrong_product` (another GCE product: its
- * `product` given back, cleaned), `not_success` (neither the product of an
- * Eco-Devices RT2 nor `"status": "Success"`, or another status).
+ * `bad_response` (no object, or no `product`: pyecodevices_rt2 refuses such an
+ * answer too), `wrong_product` (another GCE product, an IPX800 V4 answering
+ * the same API: its `product` given back, cleaned), `not_success` (a
+ * `status` other than "Success").
  */
 export function checkEnvelope(json) {
   if (json === null || typeof json !== 'object' || Array.isArray(json)) {
     return { error: 'bad_response' };
   }
   const product = own(json, 'product');
-  if (product !== undefined && product !== API.product) {
+  if (product === undefined) return { error: 'bad_response' };
+  if (product !== API.product) {
     return { error: 'wrong_product', product: cleanName(String(product)) ?? '?' };
   }
   const status = own(json, 'status');
   if (status !== undefined && status !== 'Success') return { error: 'not_success' };
-  if (product === undefined && status === undefined) return { error: 'not_success' };
   return { ok: true };
 }
 

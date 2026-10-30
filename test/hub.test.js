@@ -27,6 +27,7 @@ const CONFIG = {
   host_2: HOST_2,
   api_key_2: KEY,
   relays_2: 'R1, R2',
+  counters_2: 'C3:electricity:wh',
 };
 
 async function hubSetup({ config = CONFIG, devices = [] } = {}) {
@@ -35,7 +36,7 @@ async function hubSetup({ config = CONFIG, devices = [] } = {}) {
   const w2 = fakeRt2();
   w1.clock = clock;
   w2.clock = clock;
-  w2.TI[1] = 99_000_000;
+  w2.C[3] = 99_000_000;
   const gladys = createFakeGladys({ selector: 'rt2', config, devices });
   await gladys.connect();
   const lines = [];
@@ -86,7 +87,7 @@ test('two Eco-Devices: their own ids, Discover put together, one status line eac
   await start();
   assert.ok(ids().includes('ext:rt2:relay:r1'));
   assert.ok(ids().includes('ext:rt2:rt22:relay:r1'));
-  assert.ok(ids().includes('ext:rt2:rt22:meter:ti1'));
+  assert.ok(ids().includes('ext:rt2:rt22:meter:c3'));
   const names = gladys.fake.discoveredDevices.map((d) => d.name);
   assert.ok(names.includes('Eco-Devices n°2 · Relais 1 (R1)'), names.join(' | '));
   assert.equal(gladys.fake.connectionStatus.connected, true);
@@ -110,7 +111,7 @@ test('each command to its own box; an index to its own device', async () => {
   await start();
   const r1 = await create('relay:r1');
   const r2 = await create('rt22:relay:r2');
-  const ti = await create('rt22:meter:ti1');
+  const ti = await create('rt22:meter:c3');
   await wait(15_000);
   const on1 = await act(gladys.fake.setValue(r1, r1.features[0], 1));
   assert.equal(on1.success, true, on1.error);

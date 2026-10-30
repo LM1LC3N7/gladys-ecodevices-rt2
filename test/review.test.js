@@ -13,7 +13,7 @@ import { PILOT, TIMINGS } from '../src/constants.js';
 import { PRIORITY } from '../src/rt2/client.js';
 import { memoryStore, normalizeMemory } from '../src/store.js';
 import { fakeRt2 } from './helpers/fakeRt2.js';
-import { CONFIG, F, SECOND, created, settle, setup } from './helpers/app.js';
+import { CONFIG, F, SECOND, created, settle, setup, trustProduct } from './helpers/app.js';
 
 const message = (gladys, lang = 'en') => gladys.fake.connectionStatus?.message?.[lang] ?? '';
 const v4 = (over = {}) => ({ ...CONFIG, extensions: 'FP1-FP4', relays: 'R1, R2', ...over });
@@ -28,7 +28,7 @@ const timed = (clock, promise) => {
   return out;
 };
 
-test('B1: a clicked Off cuts the stuck read back of an earlier Off and leaves at once', async () => {
+test('B1: a clicked Off cuts the stuck read back of an earlier Off; its product read waits 1 s at most', async () => {
   const relays = [
     created('relay', 'r1', { relayKind: 'switch' }),
     created('relay', 'r2', { relayKind: 'switch' }),
@@ -48,8 +48,10 @@ test('B1: a clicked Off cuts the stuck read back of an earlier Off and leaves at
   );
   const write = world.writes().find((w) => /ClearR=02/.test(w.path));
   assert.ok(write, 'ClearR=02 written');
+  // The reads hang: the product read of the click is given up after 1 s, then the Off leaves
+  // (unreadable is never "another product").
   assert.ok(
-    write.sentAt - clicked < 50,
+    write.sentAt - clicked < 1100,
     `ClearR=02 left ${write.sentAt - clicked} ms after its click`,
   );
   assert.equal(world.R[2], 0);
@@ -95,7 +97,7 @@ test('B1: an Off that could not leave is sent again as soon as the lane frees, b
   });
   await start();
   // Refused for longer than the 250 ms of tries, then the IPX answers again.
-  world.refuseConnect = 6;
+  world.refuseConnect = 7;
   const t0 = clock.elapsed;
   const ack = await act(gladys.fake.setValue(device, device.features[0], PILOT.OFF));
   assert.match(ack.error, /Pas encore envoyée.*renvoyée dès que l’Eco-Devices est libre/);
@@ -425,7 +427,12 @@ test('M19: a guard kept in /data leaves at start, before any read', async () => 
   const second = await setup({ config: v4(), store, clock: first.clock, world });
   await second.start();
   assert.ok(world.writes().some((w) => /SetFP01=3/.test(w.path)));
-  assert.equal(world.reads().length, 0, 'read less than an interval ago: no round yet');
+  // Only the product read (Get=R, 1 s at most) before it: no round (less than an interval).
+  assert.deepEqual(
+    world.reads().map((r) => r.path.split('&').pop()),
+    ['Get=R'],
+    'read less than an interval ago: no round yet',
+  );
   second.app.stop();
 });
 
@@ -521,8 +528,11 @@ test('r2 B1: an Off kept in /data leaves within a second of the start, whatever 
   slowGladys(second.gladys, second.clock);
   const t0 = second.clock.elapsed;
   second.app.connected(v4());
-  // No time moves: everything up to the write happens without waiting for Gladys.
-  await settle(50);
+  // Only the product read (20 ms here) before it: nothing waits for Gladys.
+  for (let i = 0; i < 10; i += 1) {
+    await second.clock.advance(10);
+    await settle(5);
+  }
   const write = world.writes().find((w) => /SetFP01=3/.test(w.path) && w.sentAt !== undefined);
   assert.ok(write, 'sent before Gladys answered');
   assert.ok(write.sentAt - t0 < SECOND, `left ${write.sentAt - t0} ms after the start`);
@@ -611,6 +621,7 @@ test('r2: an Off not sent in time in a scene of 5 on a slow IPX goes before the 
     world,
   });
   await start();
+  trustProduct(app);
   world.latency = 900;
   await act(Promise.all(zones.map((z) => gladys.fake.setValue(z, z.features[0], PILOT.OFF))));
   await wait(3000);
@@ -653,6 +664,7 @@ const olderFrostThenOff = async ({ poll }) => {
   world.FP[1] = 'Confort';
   const ctx = await setup({ config: v4({ poll_interval: poll }), devices: [device], world });
   await ctx.start();
+  trustProduct(ctx.app);
   world.refuseConnect = 1;
   const feature = device.features[0];
   const frost = ctx.gladys.fake.setValue(device, feature, PILOT.FROST_PROTECTION);
@@ -701,6 +713,7 @@ test('r3 B1: a retry already queued is checked again right before it leaves', as
     world,
   });
   await start();
+  trustProduct(app);
   // Frost on fp1 refused at its first try; an Off on fp2 holds the lane 500 ms, so the
   // retry of the Frost waits in the queue when an Off is clicked on fp1.
   world.refuseConnect = 1;
@@ -738,7 +751,7 @@ test('r3: an older command cut by the Off, then handled late by the IPX, never l
     clock.timers.setTimeout(() => {
       world.FP[1] = 'Confort';
     }, 2 * SECOND);
-    return { json: { product: 'Eco-Devices_V4', status: 'Success' } };
+    return { json: { product: 'EcoDevices_RT', status: 'Success' } };
   });
   const feature = device.features[0];
   const comfort = gladys.fake.setValue(device, feature, PILOT.COMFORT);
@@ -859,7 +872,7 @@ test('r3: once a read shows the Off past the time our cut command could land, a 
   world.latency = (r) => (/SetFP01=0/.test(r.path) ? 2 * SECOND : 20);
   world.queue.push((r) =>
     /SetFP01=0/.test(r.path)
-      ? { json: { product: 'Eco-Devices_V4', status: 'Success' } }
+      ? { json: { product: 'EcoDevices_RT', status: 'Success' } }
       : undefined,
   );
   const [c, o] = await act(Promise.all([at(0, 0, PILOT.COMFORT), at(200, 0, PILOT.OFF)]));

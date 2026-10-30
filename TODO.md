@@ -16,7 +16,9 @@ to date at the end of every milestone.
       in-memory Eco-Devices on a virtual clock, and a real local HTTP server
       on a real clock (x20). Reserved at #436 of thread 10385 for cce66
       (t/11448), who has the boxes and will test.
-- [ ] **Review** (xhigh: pilot wire, relays, energy indexes).
+- [x] **Review r1** (2026-10-30): REFUSÉ, 4 important, 5 minor; fixed (see
+      "Decisions after the review r1").
+- [ ] **Review r2** (same reviewer).
 - [ ] **First real device** (cce66): answers to the questions below; until
       then the docs and the manifest say "never tested with a real device".
 - [ ] **Milestone 2**: instant power of the posts (`Get=P`), posts and
@@ -32,8 +34,10 @@ pyecodevices_rt2, or the GCE PDF of 2017, or cce66's Api-Deck), so it is to
 be checked on his boxes. Asked as raw answers (with the key removed).
 
 1. `GET /api/xdevices.json?key=…&Get=R`: the full answer. Are the keys `R1`
-   to `R10` numbers 0/1? Is `"product": "EcoDevices_RT"` there (the
-   integration refuses another product: an IPX800 answers `IPX800_V4`), and
+   to `R10` numbers 0/1? Is `"product": "EcoDevices_RT"` there, in every
+   answer, writes included? It is **required** now (review r1, I1: an answer
+   without it is "not an Eco-Devices answer", one with another product stops
+   everything): if his RT2 does not give it, nothing works. And
    `"status": "Success"`? (pyecodevices_rt2 only.)
 2. Same for `Get=D` (`D1` to `D12`): which inputs exist on the RT2 itself,
    which come from an X-8D?
@@ -46,8 +50,10 @@ be checked on his boxes. Asked as raw answers (with the key removed).
    (pyecodevices_rt2; the GCE PDF only says `Get=X` works with ENO and THL.)
 5. `Index=all`: are the keys `Index_TI1`..`Index_TI7`, `Index_TORE1`..,
    `Index_C1`..? **In which unit** are the teleinformation and clamp
-   indexes: Wh (the Home Assistant integration's default, used here and
-   divided by 1000) or kWh? Compare with the index on the meter and on the
+   indexes: Wh (the code of the Home Assistant integration) or kWh (the
+   example of its README)? Until he answers, they are neither offered nor
+   published (review r1, I3): flip `UNIT_CONFIRMED.ti_tore` and the factor of
+   `meterOf` with his answer. Compare with the index on the meter and on the
    Eco-Devices page. A counter: raw pulses, or its unit after the
    coefficient set in the Eco-Devices?
 6. A wrong API key: 401, or a 200 with `"status": "Error"`, or an HTML page?
@@ -142,3 +148,42 @@ be checked on his boxes. Asked as raw answers (with the key removed).
 - **API key optional**: the protection can be turned off in the Eco-Devices
   (GCE PDF); empty, no `key` parameter is sent.
 - **Pace**: 15 s by default (as the Home Assistant integration), 5 to 300.
+
+## Decisions after the review r1 (2026-10-30)
+
+- **I1, another product at the address**: `product` is required in every
+  answer. Every write waits for a `Get=R` that left after its click (or
+  250 ms before it: one read for the clicks of a scene) and showed
+  `EcoDevices_RT`; a command within its 3.5 s (no answer: "nothing was
+  sent"); an Off, a Frost protection and a resend of a guard 1 s at most,
+  then they leave anyway (unreadable is never "another product"); a resend
+  takes a proof up to 1 s old. Any answer naming another product (round,
+  secondary group, read back, follow-up, write) marks it at once, in memory
+  and in `/data` for that address: no command, no Off, nothing published,
+  Discover empty, the waiting commands refused, until a round reads an RT2
+  there; an outage of that box does not lift it. A write answered by another
+  product acks "sent, but another GCE product answered". Cost: one more
+  request per click (a scene of 5 at 600 ms a request passes, 700 ms not:
+  the last one "too slow", nothing sent). Found on the way: two clicked Offs
+  queued together (after the shared product read) did not get the 1 s
+  "stuck" cut of the first; the lane now arms it when the first one starts.
+- **I2, /data never writable** (as gladys-ipx800 7786d42): no file, devices
+  there, and the first save of the start failing: the owner is unknown, as
+  with an unreadable file: Offs to the address typed, nothing else, no index,
+  "Attach" refused (kept nowhere), a status. A file lost but writable keeps
+  the choice of the IPX800: nothing until "Attach", which is then kept.
+- **I3, TI and TORE units**: neither offered nor published until cce66
+  confirms (question 5); the status counts those read. Counters: the unit is
+  kept with the index state; a unit changed after the index was published
+  stops that index for good (status), until the unit is put back or the
+  device created again: a factor 1000 can never become an accepted jump.
+- **I4, /data that never answers**: every read and write of `/data` is
+  bounded (2 s, a failure then); the file store merges the saves waiting
+  behind a write into one (the 16 latest waiters, the older told it failed):
+  the rounds go on, the status says "/data", no index, the test button
+  answers.
+- **m1**: one address in two slots: the second is not read, a status (from
+  gladys-ipx800 7786d42). **m2**: an id of a slot this version does not have
+  (`rt24:`...) gets a plain refusal. **m3**: an Off answered 401 says it is
+  kept and sent again with the new key. **m4**: a test per surviving mutant
+  (`test/guards.test.js`). **m5**: manifest, README and guides.

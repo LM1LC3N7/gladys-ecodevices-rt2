@@ -27,9 +27,9 @@ test('real clock x20: one round per interval (measured), a command confirmed, an
     clock.close();
     await rt2.srv.close();
   });
-  const devices = [created('meter', 'ti1', { feature: 'energy-index', id: 'd-ti1' })];
+  const devices = [created('meter', 'c3', { feature: 'energy-index', id: 'd-c3' })];
   const gladys = createFakeGladys({ selector: 'rt2', config: {}, devices });
-  const config = { host: rt2.address, api_key: 'k', relays: 'R1' };
+  const config = { host: rt2.address, api_key: 'k', relays: 'R1', counters: 'C3:electricity:wh' };
   // The devices belong to this box (an installation that read it before).
   const bound = memoryStore(boundMemory(config));
   await gladys.connect();
@@ -53,7 +53,7 @@ test('real clock x20: one round per interval (measured), a command confirmed, an
   assert.equal(ack.success, true, ack.error);
   assert.equal(rt2.state.R[1], 1);
   assert.equal(gladys.fake.connectionStatus.connected, true);
-  assert.equal(gladys.fake.lastState('ext:rt2:meter:ti1:energy-index'), 12345.678);
+  assert.equal(gladys.fake.lastState('ext:rt2:meter:c3:energy-index'), 12345.678);
   app.stop();
   assert.ok(clock.timersSet < 60, `${clock.timersSet} timers`);
 });

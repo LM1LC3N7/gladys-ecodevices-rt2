@@ -51,17 +51,27 @@ qui peut écouter votre réseau local peut la lire. La clé est gardée par
 Gladys dans sa base, jamais réaffichée, envoyée seulement à l’Eco-Devices, et
 jamais écrite dans les journaux ni dans les fichiers de l’intégration.
 
-L’adresse doit être celle d’un Eco-Devices RT2 : un autre produit GCE (un
-IPX800, par exemple) est reconnu à sa réponse et l’état le dit ; rien ne lui
-est envoyé, pas même un Arrêt (après un redémarrage non plus), et rien n’est
-publié, tant qu’un Eco-Devices RT2 n’y répond pas.
+L’adresse doit être celle d’un Eco-Devices RT2. Un IPX800 V4 parle la même
+API (mêmes commandes de relais et de fil pilote) : avant chaque commande,
+l’intégration lit les relais (`Get=R`) et vérifie que la réponse vient d’un
+Eco-Devices RT2 (`"product": "EcoDevices_RT"`), sauf si une telle lecture est
+partie depuis le clic (ou 250 ms avant). Une commande attend cette lecture
+dans ses 3,5 s ; un Arrêt ou un Hors-gel l’attend 1 s au plus, puis part
+quand même si elle ne répond pas (une lecture sans réponse ne prouve pas un
+autre produit). Dès qu’une réponse, quelle qu’elle soit (lecture, relecture,
+commande), nomme un autre produit, l’état le dit, plus rien n’est envoyé à
+cette adresse, pas même un Arrêt, ni après un redémarrage (c’est gardé dans
+`/data`), et rien n’est publié, tant qu’une lecture n’y trouve pas un
+Eco-Devices RT2. Une commande partie juste avant cette réponse l’a peut-être
+été vers l’autre produit : son accusé le dit. Une réponse sans `product`
+n’est jamais prise pour un Eco-Devices RT2.
 
 ## Ce que vous obtenez
 
 | Sur l’Eco-Devices RT2                   | Dans Gladys                                                        | Code (dans le nom) |
 | --------------------------------------- | ------------------------------------------------------------------ | ------------------ |
-| Index de téléinformation 1 à 7          | index d’énergie (kWh)                                              | `TI1`              |
-| Pince ampèremétrique 1 à 16             | index d’énergie (kWh)                                              | `TORE3`            |
+| Index de téléinformation 1 à 7          | pas encore (voir « Unités » plus bas)                              | `TI1`              |
+| Pince ampèremétrique 1 à 16             | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
 | Compteur d’impulsions 1 à 12 (si listé) | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
 | Relais 1 à 10 (2 + un X-8R)             | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
 | Entrée 1 à 12                           | une entrée binaire (lecture seule)                                 | `D3`               |
@@ -70,8 +80,7 @@ publié, tant qu’un Eco-Devices RT2 n’y répond pas.
 
 L’API répond pour les 10 relais et les 12 entrées, câblés ou non : tous sont
 proposés dans Découverte. La zone n de fil pilote est la zone z du X-4FP e :
-n = 4 × (e − 1) + z (deux X-4FP au plus). Un index de téléinformation ou de
-pince n’apparaît dans Découverte que s’il dépasse 0.
+n = 4 × (e − 1) + z (deux X-4FP au plus).
 
 L’Eco-Devices est lu toutes les 15 secondes par défaut (5 s au moins) : les
 relais, puis les entrées, les zones (si listées), les X-THL (si listés) et
@@ -111,11 +120,19 @@ par une garde.
   marge.
 - Si `/data` ne peut pas être écrit ou lu, aucun index n’est publié.
 
-**Unités (à vérifier sur un vrai Eco-Devices)** : les index de
-téléinformation et de pince sont lus en Wh et publiés en kWh, comme le fait
-l’intégration Home Assistant ; un compteur d’impulsions est lu dans l’unité
-que vous indiquez. Un compteur dont vous changez le type reçoit une nouvelle
-fonctionnalité, qui repart de la première valeur lue.
+**Unités.** L’unité des index de téléinformation et de pince (Wh ou kWh)
+n’est confirmée par aucune source sûre (le code de l’intégration Home
+Assistant dit Wh, l’exemple de sa documentation kWh, la documentation GCE ne
+dit rien). Une erreur d’un facteur 1000, corrigée plus tard, serait un saut
+compté une fois comme consommation : ces index ne sont donc **ni proposés ni
+publiés** tant qu’un vrai Eco-Devices ne l’a pas confirmé ; l’état dit
+combien ont été lus. Un compteur d’impulsions est lu dans l’unité que vous
+indiquez : comparez la première valeur publiée au compteur. Un compteur dont
+vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la
+première valeur lue. Si vous changez son **unité** après la publication de
+son index, l’index n’est plus publié du tout (ses valeurs seraient 1000 fois
+décalées de celles de Gladys) et l’état le dit : remettez l’unité, ou
+supprimez l’appareil et recréez-le (son historique repart de zéro).
 
 ## Plusieurs Eco-Devices RT2
 
@@ -155,8 +172,19 @@ créé prend simplement l’Eco-Devices qu’il lit.
 ne se distingue pas du premier. Si vous remplacez le boîtier, vérifiez les
 relais listés et les index (une baisse ou un saut sera retenu).
 
-Si `/data` ne peut pas être lu, seuls Arrêt et Hors-gel partent, vers
-l’adresse saisie, et aucun index n’est publié.
+**`/data`.**
+
+- Illisible, ou jamais inscriptible (aucun fichier, des appareils, et la
+  première écriture échoue) : on ne sait pas à quel Eco-Devices appartiennent
+  les appareils. Seuls Arrêt et Hors-gel partent, vers l’adresse saisie ;
+  aucun index n’est publié ; « Rattacher les appareils » est refusé (il ne
+  serait gardé nulle part) ; l’état le dit.
+- Perdu mais inscriptible (fichier supprimé alors que des appareils
+  existent) : rien n’est envoyé, pas même un Arrêt, jusqu’à « Rattacher les
+  appareils » (deux clics), qui est alors gardé.
+- Une lecture ou une écriture de `/data` qui ne finit pas compte comme un
+  échec au bout de 2 s : les lectures continuent, l’état le dit, aucun index
+  n’est publié.
 
 ## Relais : en lecture seule sauf ceux que vous listez
 
@@ -192,11 +220,15 @@ puis sa recréation, l’enlève, avec son historique.
   utilisée.
 
 Un Arrêt ou un Hors-gel n’est refusé que si : l’adresse manque ou n’est pas
-valide, ou la clé n’est pas valide ; la zone n’est pas listée dans « Extensions » ; la valeur n’est pas
-l’un des six modes ; l’Eco-Devices n’est pas celui de l’appareil (autre
-adresse ou autre produit), ou rien ne permet de le savoir (voir « Chaque
-Eco-Devices garde ses appareils »). L’extinction d’un relais est refusée si
-le relais n’est pas listé.
+valide, ou la clé n’est pas valide ; la zone n’est pas listée dans
+« Extensions » ; la valeur n’est pas l’un des six modes ; l’Eco-Devices n’est
+pas celui de l’appareil (autre adresse, ou un autre produit GCE a répondu),
+ou rien ne permet de le savoir (`/data` perdu, voir « Chaque Eco-Devices
+garde ses appareils »). L’extinction d’un relais est refusée si le relais
+n’est pas listé. Avant de partir, il attend 1 s au plus la lecture qui
+vérifie le produit (voir plus haut). Si l’Eco-Devices refuse la clé, l’Arrêt
+est gardé et renvoyé dès qu’une nouvelle clé est enregistrée ou que
+« Tester la connexion » aboutit ; son accusé le dit.
 
 Cliqué avant que la configuration soit lue dans Gladys (la clé n’est gardée
 que là, jamais dans `/data`), un Arrêt la demande aussitôt à Gladys et
@@ -230,7 +262,10 @@ envoyé ». Elle est ensuite relue sur l’Eco-Devices (les relais ou les zones)
 la valeur demandée est un succès ; une autre valeur est « pas encore
 appliquée » ; pas de réponse à temps donne « envoyée, sans confirmation ».
 Deux lectures suivent, 5 s et 20 s après. Les commandes d’une scène sont
-écrites l’une après l’autre, puis relues une fois.
+écrites l’une après l’autre, après une seule lecture du produit, puis relues
+une fois. Sur un Eco-Devices qui met 600 ms par requête, une scène de 5
+commandes passe entière ; plus lent, les dernières sont refusées « trop
+lent » (rien envoyé).
 
 ## Pauses et refus
 
@@ -245,9 +280,11 @@ y remet pas. Ils reviennent à la première lecture réussie.
 
 ## Limites
 
-- Index (téléinformation, pinces, compteurs), relais, entrées, X-4FP et
-  X-THL seulement : la puissance instantanée, les postes et sous-postes, les
+- Compteurs d’impulsions, relais, entrées, X-4FP et X-THL seulement (les
+  index de téléinformation et de pince attendent la confirmation de leur
+  unité) : la puissance instantanée, les postes et sous-postes, les
   prix, les sorties virtuelles et EnOcean ne sont pas dans cette version.
 - Trois Eco-Devices au plus par intégration.
-- Reconnu par son adresse et son port (voir plus haut).
+- Reconnu par son adresse et son port (voir plus haut). Une même adresse dans
+  deux emplacements : le second n’est pas lu, l’état le dit.
 - http seulement (l’Eco-Devices répond en http sur le réseau local).

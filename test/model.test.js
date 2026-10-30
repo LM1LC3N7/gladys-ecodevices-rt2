@@ -20,7 +20,11 @@ import {
 
 test('the envelope: an Eco-Devices RT2, another product, an error, not an object', () => {
   assert.deepEqual(checkEnvelope({ product: 'EcoDevices_RT', status: 'Success' }), { ok: true });
-  assert.deepEqual(checkEnvelope({ status: 'Success' }), { ok: true });
+  assert.deepEqual(
+    checkEnvelope({ status: 'Success' }),
+    { error: 'bad_response' },
+    'no product: not taken for an RT2 (pyecodevices_rt2 refuses it too)',
+  );
   assert.deepEqual(checkEnvelope({ product: 'EcoDevices_RT' }), { ok: true });
   assert.deepEqual(checkEnvelope({ product: 'IPX800_V4', status: 'Success' }), {
     error: 'wrong_product',
@@ -28,7 +32,7 @@ test('the envelope: an Eco-Devices RT2, another product, an error, not an object
   });
   assert.equal(checkEnvelope({ product: 'x\u0000\ny', status: 'Success' }).product, 'x  y');
   assert.equal(checkEnvelope({ product: 'EcoDevices_RT', status: 'Error' }).error, 'not_success');
-  assert.equal(checkEnvelope({ R1: 1 }).error, 'not_success');
+  assert.equal(checkEnvelope({ R1: 1 }).error, 'bad_response');
   for (const bad of [null, [], 'text', 3]) assert.equal(checkEnvelope(bad).error, 'bad_response');
 });
 

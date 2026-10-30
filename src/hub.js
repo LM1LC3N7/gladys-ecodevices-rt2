@@ -16,9 +16,9 @@
 
 import { createLogger } from '@gladysassistant/integration-sdk';
 import { Rt2App } from './app.js';
-import { SLOTS, slotConfig, slotTyped } from './config.js';
+import { SLOTS, normalizeConfig, slotConfigs, slotTyped } from './config.js';
 import { slotOf, slotPrefix } from './devices.js';
-import { T, both, join } from './i18n.js';
+import { ERRORS, T, both, join, word } from './i18n.js';
 import { StatePublisher } from './publisher.js';
 import { fileStore, stateFile } from './store.js';
 
@@ -125,7 +125,7 @@ export class Rt2Hub {
         app.onConnected(async () => {
           const raw = await this.load(read);
           this.remember(raw);
-          return slotConfig(raw, slot);
+          return slotConfigs(raw, this.controllers.size).get(slot);
         }),
       ),
     );
@@ -140,8 +140,9 @@ export class Rt2Hub {
 
   async configUpdated(raw = {}) {
     this.remember(raw);
+    const configs = slotConfigs(raw, this.controllers.size);
     await Promise.all(
-      [...this.controllers].map(([slot, app]) => app.configUpdated(slotConfig(raw, slot))),
+      [...this.controllers].map(([slot, app]) => app.configUpdated(configs.get(slot))),
     );
     await this.pushStatus();
   }
@@ -218,16 +219,21 @@ export class Rt2Hub {
     await Promise.all([...this.controllers.values()].map((app) => app.scan()));
   }
 
+  // An id of a slot this version does not have (`rt27:`): not ours, a plain refusal.
   deviceCreated(device) {
-    return this.controllerOf(device?.external_id).deviceCreated(device);
+    return this.controllerOf(device?.external_id)?.deviceCreated(device);
   }
 
   deviceDeleted(device) {
-    return this.controllerOf(device?.external_id).deviceDeleted(device);
+    return this.controllerOf(device?.external_id)?.deviceDeleted(device);
   }
 
-  setValue(device, feature, value) {
-    return this.controllerOf(feature?.external_id).setValue(device, feature, value);
+  async setValue(device, feature, value) {
+    const app = this.controllerOf(feature?.external_id);
+    if (!app) {
+      throw new Error(word(ERRORS.unknownTarget, normalizeConfig(this.raw).language));
+    }
+    return app.setValue(device, feature, value);
   }
 
   /** "Test the connection": each Eco-Devices used, at once (each has its own lane). */

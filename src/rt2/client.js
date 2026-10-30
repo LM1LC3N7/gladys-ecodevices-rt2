@@ -23,6 +23,7 @@
 
 import { API, LIMITS, TIMINGS } from '../constants.js';
 import { Rt2Error, request } from './http.js';
+import { checkEnvelope } from './model.js';
 
 export const PRIORITY = { PROTECTIVE: 0, GUARD: 1, COMMAND: 2, CONFIRM: 3, READ: 4 };
 
@@ -102,16 +103,22 @@ export class Rt2Client {
       ) {
         // Another protective command that gets no answer for 1 s is cut too (it may have
         // left: "sent, without confirmation"); this one does not wait for its deadline.
-        const running = this.current;
-        this.timers.setTimeout(
-          () => {
-            if (this.current === running) running.cut?.();
-          },
-          Math.max(0, running.startedAt + TIMINGS.stuckProtective - this.monotonic()),
-        );
+        this.armStuck(this.current);
       }
       this.pump();
     });
+  }
+
+  /** A clicked protective request without answer for 1 s is cut while another one waits. */
+  armStuck(running) {
+    if (running.stuckArmed) return;
+    running.stuckArmed = true;
+    this.timers.setTimeout(
+      () => {
+        if (this.current === running) running.cut?.();
+      },
+      Math.max(0, running.startedAt + TIMINGS.stuckProtective - this.monotonic()),
+    );
   }
 
   pump() {
@@ -126,6 +133,14 @@ export class Rt2Client {
       running.cutAsked = true;
     };
     this.current = running;
+    // Two clicked protective commands queued together (after a shared read, say): the one that
+    // starts gets the same 1 s as if the other had come while it ran.
+    if (
+      running.priority === PRIORITY.PROTECTIVE &&
+      this.queue.some((j) => j.priority === PRIORITY.PROTECTIVE)
+    ) {
+      this.armStuck(running);
+    }
     const { deadline, beforeSend, onSent } = job.hooks;
     this.transport(
       { hostname: this.host, port: this.port, ...job.options },
@@ -193,13 +208,17 @@ export class Rt2Client {
       throw new Rt2Error('bad_request', 'invalid write');
     }
     const json = await this.json(priority, { method: 'GET', path: this.path(query) }, hooks);
-    if (json?.status !== 'Success') {
+    // The product first: another GCE product (an IPX800 V4) takes the same writes.
+    const envelope = checkEnvelope(json);
+    if (envelope.error === 'wrong_product') {
+      const err = new Rt2Error('wrong_product', 'not an Eco-Devices RT2', { sent: true });
+      err.product = envelope.product;
+      throw err;
+    }
+    if (envelope.error || json.status !== 'Success') {
       throw new Rt2Error('not_success', 'the Eco-Devices did not confirm the write', {
         sent: true,
       });
-    }
-    if (json.product !== undefined && json.product !== API.product) {
-      throw new Rt2Error('wrong_product', 'not an Eco-Devices RT2', { sent: true });
     }
   }
 }

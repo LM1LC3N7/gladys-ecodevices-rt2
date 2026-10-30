@@ -53,6 +53,15 @@ export function boundMemory(raw = CONFIG) {
   };
 }
 
+/**
+ * A proof that the box is an Eco-Devices RT2 that never expires: for the tests whose subject
+ * is the order of the protective writes, not the product read before them (tested in
+ * test/product.test.js).
+ */
+export const trustProduct = (app) => {
+  app.productAt = Number.MAX_SAFE_INTEGER;
+};
+
 /** Lets the pending promises settle (no timer involved). */
 export const settle = async (rounds = 30) => {
   for (let i = 0; i < rounds; i += 1) {

@@ -13,15 +13,21 @@ the notes of the version's GitHub Release.
 ### Added
 
 - First version: up to three GCE Eco-Devices RT2 through their local JSON API.
-- Indexes of the teleinformation (TI1 to TI7) and of the current clamps (TORE1
-  to TORE16) in kWh, pulse counters (C1 to C12) as water, gas or electricity:
-  never 0, never lower, a jump or a drop held back until "Accept the held
-  index" is clicked twice.
+- Pulse counters (C1 to C12) as water, gas or electricity: never 0, never
+  lower, a jump or a drop held back until "Accept the held index" is clicked
+  twice. Teleinformation and clamp indexes wait for their unit to be
+  confirmed.
 - Relays R1 to R10 read only unless listed; digital inputs D1 to D12;
   pilot-wire zones FP1 to FP8 of the X-4FP (Off and Frost protection always
   sent, Eco and Comfort behind an option); X-THL 1 and 2.
 - "Test the connection", "Attach the devices" (a box moved to another
   address), another GCE product at the address recognised.
 - French and English guides.
+- Review r1: every command waits for a read showing an Eco-Devices RT2 (an
+  IPX800 V4 at the address takes the same commands), and any answer of
+  another product stops everything, kept across restarts; teleinformation
+  and clamp indexes held back until their unit is confirmed; a counter whose
+  unit changes stops its index; /data never writable lets the Offs go;
+  /data waits bounded; one address in one slot only; clearer acks.
 
 [Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/commits/main

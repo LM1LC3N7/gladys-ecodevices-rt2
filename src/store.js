@@ -28,8 +28,40 @@ export const FORMAT = 1;
 const MAX_STATE_BYTES = 256 * 1024;
 
 export function fileStore(path = STATE_FILE) {
-  // One write at a time: two saves never share the temporary file.
-  let chain = Promise.resolve();
+  // One write at a time: two saves never share the temporary file. The saves asked while one
+  // runs are merged into ONE next write of the latest state (they all settle with it): a write
+  // that never ends holds one state back, never a growing queue.
+  let running = false;
+  let next;
+  const write = async (text) => {
+    const temporary = `${path}.tmp`;
+    const file = await open(temporary, 'w', 0o600);
+    try {
+      await file.writeFile(text, 'utf8');
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await rename(temporary, path);
+  };
+  const pump = () => {
+    if (running || !next) return;
+    const { text, waiters } = next;
+    next = undefined;
+    running = true;
+    write(text).then(
+      () => {
+        running = false;
+        for (const w of waiters) w.resolve();
+        pump();
+      },
+      (err) => {
+        running = false;
+        for (const w of waiters) w.reject(err);
+        pump();
+      },
+    );
+  };
   return {
     /** null when there is no file (a fresh install); throws when it cannot be read or parsed. */
     async load() {
@@ -49,19 +81,15 @@ export function fileStore(path = STATE_FILE) {
     },
     save(data) {
       const text = JSON.stringify(data);
-      const write = chain.then(async () => {
-        const temporary = `${path}.tmp`;
-        const file = await open(temporary, 'w', 0o600);
-        try {
-          await file.writeFile(text, 'utf8');
-          await file.sync();
-        } finally {
-          await file.close();
+      return new Promise((resolve, reject) => {
+        const waiters = [...(next?.waiters ?? []), { resolve, reject }];
+        // Bounded while a write hangs: the oldest waiters are told it failed.
+        for (const w of waiters.splice(0, Math.max(0, waiters.length - 16))) {
+          w.reject(Object.assign(new Error('superseded'), { code: 'EBUSY' }));
         }
-        await rename(temporary, path);
+        next = { text, waiters };
+        pump();
       });
-      chain = write.catch(() => {});
-      return write;
     },
   };
 }
@@ -143,7 +171,14 @@ function meterOf(raw) {
     typeof raw.device === 'string' && raw.device.length > 0 && raw.device.length <= 64
       ? raw.device
       : undefined;
-  return { feature: raw.feature, ...(device ? { device } : {}), last, held };
+  const unit = ['wh', 'kwh', 'l', 'm3'].includes(raw.unit) ? raw.unit : undefined;
+  return {
+    feature: raw.feature,
+    ...(device ? { device } : {}),
+    ...(unit ? { unit } : {}),
+    last,
+    held,
+  };
 }
 
 /** An empty memory. */

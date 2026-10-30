@@ -18,7 +18,7 @@ const withRelays = (relays = 'R1, R2:light', more = {}) => ({ ...CONFIG, relays,
 
 test('start: one round at once (relays, inputs, indexes), connected, Discover; nothing secret in /data', async () => {
   const { app, gladys, start, store, world } = await setup({
-    config: { ...CONFIG, extensions: 'FP1-FP4, THL1' },
+    config: { ...CONFIG, extensions: 'FP1-FP4, THL1', counters: 'C3:electricity:wh' },
   });
   await start();
   assert.equal(rounds(world).length, 1);
@@ -30,23 +30,23 @@ test('start: one round at once (relays, inputs, indexes), connected, Discover; n
   assert.equal(gladys.fake.connectionStatus.connected, true);
   assert.match(
     message(gladys),
-    /Eco-Devices RT2: 10 relay\(s\), 12 input\(s\), 4 pilot-wire zone\(s\), 1 X-THL, 3 index\(es\)/,
+    /Eco-Devices RT2: 10 relay\(s\), 12 input\(s\), 4 pilot-wire zone\(s\), 1 X-THL, 1 index\(es\)\./,
   );
+  assert.match(message(gladys), /3 teleinformation or clamp index\(es\) read but not offered/);
   const ids = gladys.fake.discoveredDevices.map((d) => d.external_id);
   assert.ok(ids.includes('ext:rt2:relay:r10'));
   assert.ok(ids.includes('ext:rt2:input:d12'));
   assert.ok(ids.includes('ext:rt2:pilot-wire:fp4'));
   assert.ok(!ids.includes('ext:rt2:pilot-wire:fp5'), 'only the zones listed');
   assert.ok(ids.includes('ext:rt2:thl:thl1'));
-  assert.ok(ids.includes('ext:rt2:meter:ti1') && ids.includes('ext:rt2:meter:ti2'));
-  assert.ok(ids.includes('ext:rt2:meter:tore1'));
-  assert.ok(!ids.includes('ext:rt2:meter:ti3'), 'an index at 0 is not a meter');
+  assert.ok(!ids.some((id) => /meter:(ti|tore)/.test(id)), 'unit not confirmed: not offered');
+  assert.ok(ids.includes('ext:rt2:meter:c3'));
   assert.ok(!ids.includes('ext:rt2:meter:c1'), 'a counter only once configured');
   const relay = gladys.fake.discoveredDevices.find((d) => d.external_id === 'ext:rt2:relay:r1');
   assert.equal(relay.features.length, 1);
   assert.equal(relay.features[0].external_id, F('relay', 'r1', 'readonly'));
   assert.equal(relay.features[0].read_only, true, 'a relay not declared is read only');
-  const ti = gladys.fake.discoveredDevices.find((d) => d.external_id === 'ext:rt2:meter:ti1');
+  const ti = gladys.fake.discoveredDevices.find((d) => d.external_id === 'ext:rt2:meter:c3');
   assert.equal(ti.features[0].category, 'energy-sensor');
   assert.equal(ti.features[0].type, 'index');
   assert.equal(ti.features[0].unit, 'kilowatt-hour');
@@ -330,7 +330,7 @@ test('a zone not listed in Extensions is unknown: nothing sent; zone 00 is never
   app.stop();
 });
 
-test('a scene on 5 slow relays (700 ms a request): all 5 written, each acked within 5 s', async () => {
+test('a scene on 5 slow relays (600 ms a request, a product read first): all 5 written, each acked within 5 s', async () => {
   const devices = [1, 2, 3, 4, 5].map((n) => created('relay', `r${n}`, { relayKind: 'switch' }));
   const world = fakeRt2();
   const { app, start, act, gladys, clock } = await setup({
@@ -339,7 +339,7 @@ test('a scene on 5 slow relays (700 ms a request): all 5 written, each acked wit
     config: withRelays('R1, R2, R3, R4, R5'),
   });
   await start();
-  world.latency = 700;
+  world.latency = 600;
   const t0 = clock.elapsed;
   const acks = await act(
     Promise.all(
@@ -438,7 +438,12 @@ test('an Off clicked before the configuration is read is kept and sent when it c
   await loading;
   await wait(2000);
   assert.equal(world.FP[1], 'Arret');
-  assert.ok(world.writes()[0].at < world.reads()[0].at, 'the Off before the first read');
+  // The product read (bounded), then the Off, before any read of the round.
+  assert.deepEqual(
+    world.requests.slice(0, 3).map((r) => r.path.split('&').pop()),
+    ['Get=R', 'SetFP01=3', 'Get=R'],
+  );
+  assert.ok(world.writes()[0].at < world.reads()[1].at, 'the Off before the round');
   app.stop();
 });
 
@@ -466,7 +471,8 @@ test('an Off not answered is kept in /data and sent again after a restart, befor
   world.requests.length = 0;
   await second.app.connected(withRelays('R1'));
   await second.wait(100);
-  assert.match(world.requests[0].path, /ClearR=01$/);
+  assert.match(world.requests[0].path, /Get=R$/, 'the product first (1 s at most)');
+  assert.match(world.requests[1].path, /ClearR=01$/);
   assert.equal(world.R[1], 0);
   second.app.stop();
 });

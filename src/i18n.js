@@ -250,6 +250,16 @@ export const T = {
       `Index retenu, non envoyé à Gladys : ${line('fr')}. Vérifiez le compteur, puis cliquez deux fois « Accepter l’index retenu » si la nouvelle valeur est juste.`,
     );
   },
+  unitChanged: (list) =>
+    both(
+      `Unit of a counter changed after its index was published, the index is no longer sent (its values would be 1000 times off): ${list.en}. Put the unit back, or delete the device and create it again (its history starts over).`,
+      `Unité d’un compteur changée après la publication de son index, l’index n’est plus envoyé (ses valeurs seraient 1000 fois décalées) : ${list.fr}. Remettez l’unité, ou supprimez l’appareil et recréez-le (son historique repart de zéro).`,
+    ),
+  unitsUnconfirmed: (count) =>
+    both(
+      `${count} teleinformation or clamp index(es) read but not offered: their unit (Wh or kWh) is not confirmed on a real Eco-Devices yet (see the guide).`,
+      `${count} index de téléinformation ou de pince lu(s) mais non proposé(s) : leur unité (Wh ou kWh) n’est pas encore confirmée sur un vrai Eco-Devices (voir le guide).`,
+    ),
   guardsPending: (list) =>
     both(
       `Off / Frost protection not applied yet, sent again: ${list.en}.`,
@@ -290,6 +300,15 @@ export const T = {
     both(
       `The devices of Eco-Devices #${slot} are not known to belong to the Eco-Devices read (the state in /data was lost): none of their commands is sent. If they are its own, click "Attach the devices" twice.`,
       `Rien ne dit que les appareils de l’Eco-Devices n°${slot} appartiennent à l’Eco-Devices lu (l’état de /data a été perdu) : aucune de leurs commandes n’est envoyée. Si ce sont les siens, cliquez deux fois « Rattacher les appareils ».`,
+    ),
+  ownerUnwritable: both(
+    'The state cannot be written to /data and holds nothing yet: which Eco-Devices the devices belong to is unknown. Only Off and Frost protection are sent, to the address typed, until /data can be written.',
+    'L’état ne peut pas être écrit dans /data, qui ne contient encore rien : on ne sait pas à quel Eco-Devices appartiennent les appareils. Seuls Arrêt et Hors-gel sont envoyés, à l’adresse saisie, tant que /data ne peut pas être écrit.',
+  ),
+  duplicateSlot: (other) =>
+    both(
+      `Same address as Eco-Devices #${other}: an Eco-Devices goes in one slot only. This one is not read; empty its address.`,
+      `Même adresse que l’Eco-Devices n°${other} : un Eco-Devices ne va que dans un emplacement. Celui-ci n’est pas lu ; videz son adresse.`,
     ),
   ownerUnreadable: both(
     'The state in /data cannot be read: which Eco-Devices the devices belong to is unknown, only Off and Frost protection are sent until it can, and no index is published.',
@@ -481,6 +500,19 @@ export const ERRORS = {
   keptUntilConfig: both(
     'Not sent yet: the configuration is being read from Gladys; kept and sent as soon as it is read.',
     'Pas encore envoyée : la configuration est en cours de lecture dans Gladys ; gardée et envoyée dès sa lecture.',
+  ),
+  protectiveKeptRefused: both(
+    'The Eco-Devices refused the API key: the Off is kept, and sent again as soon as a new key is saved or "Test the connection" succeeds.',
+    'L’Eco-Devices a refusé la clé d’API : l’arrêt est gardé, et renvoyé dès qu’une nouvelle clé est enregistrée ou que « Tester la connexion » aboutit.',
+  ),
+  sentToOther: (product) =>
+    both(
+      `Sent, but another GCE product answered ("${product}"), not an Eco-Devices RT2: nothing more is sent to this address until an Eco-Devices RT2 answers there.`,
+      `Envoyée, mais un autre produit GCE a répondu (« ${product} »), pas un Eco-Devices RT2 : plus rien n’est envoyé à cette adresse tant qu’un Eco-Devices RT2 n’y répond pas.`,
+    ),
+  ownerUnknown: both(
+    '/data cannot be read or written: which Eco-Devices this device belongs to is unknown, only Off and Frost protection are sent. Nothing was sent.',
+    '/data ne peut être ni lu ni écrit : on ne sait pas à quel Eco-Devices appartient cet appareil, seuls Arrêt et Hors-gel sont envoyés. Rien n’a été envoyé.',
   ),
   protectiveKept: (reason) =>
     both(

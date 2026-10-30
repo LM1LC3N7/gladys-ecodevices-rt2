@@ -143,6 +143,13 @@ export const RANGES = {
   luminosity: { min: 0, max: 200_000 },
 };
 
+/**
+ * The units confirmed on a real Eco-Devices RT2. Teleinformation and clamps: Wh in the code of
+ * the Home Assistant integration, kWh in the example of its README; the GCE PDF and cce66's
+ * tool say nothing. Until cce66 confirms, those indexes are neither offered nor published.
+ */
+export const UNIT_CONFIRMED = { ti_tore: false };
+
 /** An index read (Wh, litres, m³, kWh): a positive number up to this, else unknown. */
 export const INDEX_MAX = 1e13;
 /** The published index (kWh or m³) is bounded for Gladys. */
@@ -222,6 +229,20 @@ export const TIMINGS = {
   configWait: 3 * SECOND,
   /** "Attach the devices": the second click within this. */
   attachConfirm: MINUTE,
+  /** A read or a write of /data not done by then is a failed one (never an unbounded wait). */
+  storeWait: 2 * SECOND,
+  /**
+   * Before a protective write without a fresh proof of the product (a read that left after the
+   * click): a `Get=R` awaited this long at most, then the Off leaves anyway. A resend of a
+   * guard takes a proof this recent.
+   */
+  productCheck: SECOND,
+  productFresh: SECOND,
+  /**
+   * A click takes as proof a read that left this little before it (the read of the click just
+   * before, in a scene): no box is swapped in a quarter of a second.
+   */
+  productTolerance: 250,
   /** "Accept the held index": the second click 3 s to 5 min after the first. */
   acceptAfter: 3 * SECOND,
   acceptWithin: 5 * MINUTE,

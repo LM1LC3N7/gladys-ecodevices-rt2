@@ -2,8 +2,8 @@
 
 [Gladys Assistant](https://gladysassistant.com) integration for the **GCE
 Electronics Eco-Devices RT2** (up to three in one installation), through its
-local JSON API: indexes of the teleinformation, of the current clamps and of
-the pulse counters, relays (read only unless you list them), digital inputs,
+local JSON API: indexes of the pulse counters (teleinformation and clamps once
+their unit is confirmed), relays (read only unless you list them), digital inputs,
 pilot-wire zones of the X-4FP, X-THL sensors.
 
 - Indexes: never 0; a drop or a jump is held back until you accept it in
@@ -14,7 +14,8 @@ pilot-wire zones of the X-4FP, X-THL sensors.
 - The API key is never written in the logs nor in `/data`.
 - Each Eco-Devices keeps its devices (known by its address and port, the API
   giving no MAC address): a box at another address never gets their
-  commands.
+  commands; another GCE product at the address (an IPX800 V4 speaks the same
+  API) is checked before every command and gets none.
 
 Never tested with a real device. Not affiliated with GCE Electronics.
 
