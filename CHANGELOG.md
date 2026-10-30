@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-30
+
 ### Added
 
 - First version: up to three GCE Eco-Devices RT2 through their local JSON API.
@@ -34,4 +36,5 @@ the notes of the version's GitHub Release.
   devices"; a write answer without "product" is taken after the product
   read; a read without it is named in the status.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/commits/main
+[Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/releases/tag/v0.1.1
