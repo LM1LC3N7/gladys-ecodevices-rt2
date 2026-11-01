@@ -239,3 +239,12 @@ Still open, to ask on the forum (short, in French):
   read back or round showing a mode text clears it at once (question 2).
 - **Envelope**: `product` and `status` were in all three answers: kept as
   they are.
+
+## Next patch (review cce66 r1, 8c6259d) — M1 first
+
+- M1: Eco / Comfort can still reach a zone that just answered a number: `numeric` only comes from a finished round (`src/app.js:1086`, `:1196`); `storeReadBack` (`:2143-2145`) ignores a numeric read-back and keeps the old text; a round in progress has already seen 0; at start or after a saved config, until the first full round (`:557`, up to one interval, 15-300 s). Keep a set of "numeric" zones updated on every `Get=FP` answer, read-backs included; keep it in `/data` at start or say the window in the docs; tests for the three cases, one killing the mutant of `checkBeforeSend` (`:2262`). Until then the docs' "Eco and Comfort refused there" is too broad.
+- M2: `test/cce66.test.js:156-178`: after the sentinel, come back with a +67 MWh jump and assert it is held (the mutant "sentinel clears the reference" survives).
+- M3: Off / Frost protection on a numeric zone: the status says "not applied yet, sent again" with no resend; the Off is resent at each of the next 3 restarts then "check on site". Give this case its own status and a sentence in the docs.
+- M4: Frost protection on a numeric zone is not tested (a mutant refusing it survives): add it to the Off test.
+- M5: the intro of `docs/fr.md` and `docs/en.md` (lines 3-7) still announces the clamps.
+- M6: no `timeout-minutes` in `.github/workflows/ci.yml`.
