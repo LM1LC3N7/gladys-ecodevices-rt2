@@ -43,7 +43,6 @@ test('the store basics, the same version everywhere (semver, never pinned), no k
   );
   assert.deepEqual(manifest.transports, ['local']);
   assert.deepEqual(manifest.categories, ['energy', 'climate', 'lighting']);
-  assert.equal(manifest.version, '0.1.0');
   assert.equal(manifest.keywords, undefined, 'keywords need gladys_version >= 5.3.0');
   assert.equal(manifest.countries, undefined, 'countries need gladys_version >= 5.3.0');
   for (const lang of ['en', 'fr']) {

@@ -8,8 +8,9 @@ leurs capteurs X-THL (température, humidité, luminosité).
 
 > Jamais testé avec un vrai appareil : écrit d’après la documentation de
 > l’API de GCE Electronics (« API Eco Devices RT », 2017), la bibliothèque
-> libre de l’intégration Home Assistant (pyecodevices_rt2) et les outils de
-> test de cce66. Dites-nous ce que vous voyez sur le vôtre. Sans lien avec
+> libre de l’intégration Home Assistant (pyecodevices_rt2), les outils de
+> test de cce66 et les réponses de son RT2 à ses lectures (octobre 2026).
+> Dites-nous ce que vous voyez sur le vôtre. Sans lien avec
 > GCE Electronics.
 
 ## Installation
@@ -74,8 +75,8 @@ valeur.
 
 | Sur l’Eco-Devices RT2                   | Dans Gladys                                                        | Code (dans le nom) |
 | --------------------------------------- | ------------------------------------------------------------------ | ------------------ |
-| Index de téléinformation 1 à 7          | pas encore (voir « Unités » plus bas)                              | `TI1`              |
-| Pince ampèremétrique 1 à 16             | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
+| Index de téléinformation 1 à 7          | index d’énergie (kWh)                                              | `TI1`              |
+| Pince ampèremétrique 1 à 20             | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
 | Compteur d’impulsions 1 à 12 (si listé) | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
 | Relais 1 à 10 (2 + un X-8R)             | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
 | Entrée 1 à 12                           | une entrée binaire (lecture seule)                                 | `D3`               |
@@ -89,7 +90,13 @@ n = 4 × (e − 1) + z (deux X-4FP au plus).
 L’Eco-Devices est lu toutes les 15 secondes par défaut (5 s au moins) : les
 relais, puis les entrées, les zones (si listées), les X-THL (si listés) et
 les index, une requête après l’autre. Une valeur que l’Eco-Devices ne donne
-pas (absente, un texte, hors plage) n’est pas publiée : jamais comme 0. Si
+pas (absente, un texte, hors plage) n’est pas publiée : jamais comme 0. Un
+index lu à 4294967295 est une entrée sans rien derrière (une entrée de
+téléinformation sans compteur) : jamais proposé ni publié, jamais un saut.
+Une zone de X-4FP qui répond un nombre au lieu d’un mode (0 sur un vrai RT2 :
+pas de X-4FP à cet endroit, ou un firmware que nous ne connaissons pas
+encore) n’est pas publiée ; l’état la cite, Éco et Confort y sont refusés,
+Arrêt et Hors-gel restent envoyés. Si
 les relais ne peuvent pas être lus, la lecture entière est en échec ; si un
 autre groupe échoue, ses valeurs ne sont pas publiées cette fois et l’état
 le dit.
@@ -124,13 +131,14 @@ par une garde.
   marge.
 - Si `/data` ne peut pas être écrit ou lu, aucun index n’est publié.
 
-**Unités.** L’unité des index de téléinformation et de pince (Wh ou kWh)
-n’est confirmée par aucune source sûre (le code de l’intégration Home
-Assistant dit Wh, l’exemple de sa documentation kWh, la documentation GCE ne
-dit rien). Une erreur d’un facteur 1000, corrigée plus tard, serait un saut
-compté une fois comme consommation : ces index ne sont donc **ni proposés ni
-publiés** tant qu’un vrai Eco-Devices ne l’a pas confirmé ; l’état dit
-combien ont été lus. Un compteur d’impulsions est lu dans l’unité que vous
+**Unités.** Les index de téléinformation sont lus en Wh et publiés en kWh :
+confirmé sur un vrai RT2, dont le TI1 valait, à 143 Wh près, l’index qu’un
+Eco-Devices 3 (en Wh) lisait sur le même compteur. Sa propre page peut
+afficher des kWh : même valeur, divisée par 1000. L’unité des index de pince
+(Wh ou kWh) n’est pas encore confirmée ; une erreur d’un facteur 1000,
+corrigée plus tard, serait un saut compté une fois comme consommation : les
+pinces ne sont donc **ni proposées ni publiées** tant qu’elle ne l’est pas ;
+l’état dit combien ont été lues. Un compteur d’impulsions est lu dans l’unité que vous
 indiquez : comparez la première valeur publiée au compteur. Un compteur dont
 vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la
 première valeur lue. Si vous changez son **unité** après la publication de
@@ -288,9 +296,8 @@ y remet pas. Ils reviennent à la première lecture réussie.
 
 ## Limites
 
-- Compteurs d’impulsions, relais, entrées, X-4FP et X-THL seulement (les
-  index de téléinformation et de pince attendent la confirmation de leur
-  unité) : la puissance instantanée, les postes et sous-postes, les
+- Téléinformation, compteurs d’impulsions, relais, entrées, X-4FP et X-THL
+  seulement (les index de pince attendent la confirmation de leur unité) : la puissance instantanée, les postes et sous-postes, les
   prix, les sorties virtuelles et EnOcean ne sont pas dans cette version.
 - Trois Eco-Devices au plus par intégration.
 - Reconnu par son adresse et son port (voir plus haut). Une même adresse dans

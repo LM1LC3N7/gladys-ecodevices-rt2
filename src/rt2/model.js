@@ -17,6 +17,7 @@ import {
   COUNTER_TYPES,
   FEATURES,
   FP_TEXT,
+  INDEX_ABSENT,
   INDEX_MAX,
   KINDS,
   LIMITS,
@@ -132,13 +133,23 @@ export function valueOf(json, kind, n) {
   return undefined;
 }
 
-/** An index read: a JSON number, or a plain decimal text; undefined otherwise (never 0 from a text). */
+/**
+ * A zone answered with a number instead of a mode text (0 on a real RT2): not understood, so
+ * neither published nor taken for a mode (pyecodevices_rt2 maps a 0 to "unknown").
+ */
+export const zoneIsNumber = (json, n) => typeof own(json, zoneKey(n)) === 'number';
+
+/**
+ * An index read: a JSON number, or a plain decimal text; undefined otherwise (never 0 from a
+ * text, never 4294967295: an entry with nothing behind it).
+ */
 export function indexNumber(raw) {
   let value;
   if (typeof raw === 'number') value = raw;
   else if (typeof raw === 'string' && /^\d{1,15}(?:\.\d{1,6})?$/.test(raw.trim())) {
     value = Number(raw.trim());
   }
+  if (value === INDEX_ABSENT) return undefined;
   return Number.isFinite(value) && value >= 0 && value <= INDEX_MAX ? value : undefined;
 }
 
@@ -154,8 +165,8 @@ const round3 = (value) => Math.round(value * 1000) / 1000;
 /**
  * What a meter measures and the value published from the raw index:
  * `{ feature, value }` (value undefined when not a positive number).
- * Teleinformation and clamps: Wh read, kWh published (unit of the reference,
- * to check on a real device); counters: as configured.
+ * Teleinformation and clamps: Wh read, kWh published (confirmed on a real
+ * RT2 for the teleinformation only, see UNIT_CONFIRMED); counters: as configured.
  */
 export function meterOf(code, raw, counters) {
   const number = indexNumber(raw);

@@ -30,16 +30,18 @@ test('start: one round at once (relays, inputs, indexes), connected, Discover; n
   assert.equal(gladys.fake.connectionStatus.connected, true);
   assert.match(
     message(gladys),
-    /Eco-Devices RT2: 10 relay\(s\), 12 input\(s\), 4 pilot-wire zone\(s\), 1 X-THL, 1 index\(es\)\./,
+    /Eco-Devices RT2: 10 relay\(s\), 12 input\(s\), 4 pilot-wire zone\(s\), 1 X-THL, 3 index\(es\)\./,
   );
-  assert.match(message(gladys), /3 teleinformation or clamp index\(es\) read but not offered/);
+  assert.match(message(gladys), /1 clamp index\(es\) read but not offered/);
   const ids = gladys.fake.discoveredDevices.map((d) => d.external_id);
   assert.ok(ids.includes('ext:rt2:relay:r10'));
   assert.ok(ids.includes('ext:rt2:input:d12'));
   assert.ok(ids.includes('ext:rt2:pilot-wire:fp4'));
   assert.ok(!ids.includes('ext:rt2:pilot-wire:fp5'), 'only the zones listed');
   assert.ok(ids.includes('ext:rt2:thl:thl1'));
-  assert.ok(!ids.some((id) => /meter:(ti|tore)/.test(id)), 'unit not confirmed: not offered');
+  assert.ok(ids.includes('ext:rt2:meter:ti1'), 'teleinformation: Wh confirmed, offered');
+  assert.ok(ids.includes('ext:rt2:meter:ti2'));
+  assert.ok(!ids.some((id) => /meter:tore/.test(id)), 'clamps: unit not confirmed, not offered');
   assert.ok(ids.includes('ext:rt2:meter:c3'));
   assert.ok(!ids.includes('ext:rt2:meter:c1'), 'a counter only once configured');
   const relay = gladys.fake.discoveredDevices.find((d) => d.external_id === 'ext:rt2:relay:r1');

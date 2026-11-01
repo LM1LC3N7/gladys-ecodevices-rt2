@@ -1,7 +1,8 @@
 // -----------------------------------------------------------------------------
 // The indexes end to end: pulse counters as configured (electricity read in
-// Wh, published in kWh; water; gas), teleinformation and clamps never offered
-// while their unit is not confirmed, each through its guard: never 0, never lower, a jump or a
+// Wh, published in kWh; water; gas), teleinformation in kWh (Wh read,
+// confirmed on a real RT2), clamps never offered while their unit is not
+// confirmed, each through its guard: never 0, never lower, a jump or a
 // drop held until two clicks of "Accept the held index", kept in /data with
 // the device it belongs to, dated on the session clock.
 // -----------------------------------------------------------------------------
@@ -276,16 +277,20 @@ test('another box at the configured address: no index published onto its devices
   app.stop();
 });
 
-test('teleinformation and clamp indexes: neither offered nor published while their unit is unconfirmed', async () => {
-  const devices = [meter('ti1'), meter('tore1')];
-  const { app, gladys, start, wait } = await setupM({ devices });
+test('teleinformation published in kWh (Wh read); clamps neither offered nor published while their unit is unconfirmed', async () => {
+  const world = fakeRt2();
+  world.TORE[17] = 1_846_258;
+  const devices = [meter('ti1'), meter('tore1'), meter('tore17')];
+  const { app, gladys, start, wait } = await setupM({ world, devices });
   await start();
   await wait(15 * SECOND);
   const ids = gladys.fake.discoveredDevices.map((d) => d.external_id);
-  assert.ok(!ids.some((id) => /meter:(ti|tore)/.test(id)), ids.join(' '));
-  assert.equal(gladys.fake.lastState(F('meter', 'ti1', 'energy-index')), undefined);
+  assert.ok(!ids.some((id) => /meter:tore/.test(id)), ids.join(' '));
+  assert.ok(ids.includes('ext:rt2:meter:ti2'), ids.join(' '));
+  assert.equal(gladys.fake.lastState(F('meter', 'ti1', 'energy-index')), 12345.678);
   assert.equal(gladys.fake.lastState(F('meter', 'tore1', 'energy-index')), undefined);
-  assert.match(message(gladys), /3 teleinformation or clamp index\(es\) read but not offered/);
+  assert.equal(gladys.fake.lastState(F('meter', 'tore17', 'energy-index')), undefined);
+  assert.match(message(gladys), /2 clamp index\(es\) read but not offered/);
   assert.match(message(gladys, 'fr'), /leur unité \(Wh ou kWh\) n’est pas encore confirmée/);
   app.stop();
 });

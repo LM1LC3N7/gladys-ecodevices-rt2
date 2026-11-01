@@ -10,6 +10,20 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Changed
+
+- From the answers of a real Eco-Devices RT2 (cce66): teleinformation indexes
+  offered and published in kWh (read in Wh, confirmed against an Eco-Devices
+  3 on the same meter); clamps still wait for their unit, now up to TORE20.
+
+### Fixed
+
+- An index read 4294967295 (an entry with nothing behind it) is never
+  offered, published nor held as a jump.
+- A pilot-wire zone answering a number instead of a mode is not published,
+  is listed in the status, and refuses Eco and Comfort (Off and Frost
+  protection still sent).
+
 ## [0.1.1] - 2026-10-30
 
 ### Added

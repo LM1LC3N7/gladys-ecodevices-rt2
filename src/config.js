@@ -5,7 +5,7 @@
 // stored lower case: `r<n>` relay 1-10, `d<n>` digital input 1-12, `fp<n>`
 // pilot-wire zone 1-8 (zone z of the X-4FP e: 4 * (e - 1) + z, the `SetFPxx`
 // number), `thl<n>` X-THL 1-2, `ti<n>` teleinformation index 1-7, `tore<n>`
-// current clamp 1-16, `c<n>` pulse counter 1-12.
+// current clamp 1-20, `c<n>` pulse counter 1-12.
 // -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';

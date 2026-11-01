@@ -18,8 +18,13 @@ to date at the end of every milestone.
       (t/11448), who has the boxes and will test.
 - [x] **Review r1** (2026-10-30): REFUSÉ, 4 important, 5 minor; fixed (see
       "Decisions after the review r1").
-- [ ] **Review r2** (same reviewer).
-- [ ] **First real device** (cce66): answers to the questions below; until
+- [x] **Review r2** (same reviewer): approved, released as 0.1.1.
+- [x] **First real answers** (cce66, t/11448 #7, 2026-10-31): `Get=R`,
+      `Index=all`, `Get=FP` of his RT2, and the index of his Eco-Devices 3 on
+      the same Linky (copy in `_lots/hors-lot/cce66-n7/releves.md`, tests in
+      `test/cce66.test.js`). Fixed from them (2026-11-01): see "Decisions
+      after the first real answers".
+- [ ] **First real run** (cce66): the integration itself on his RT2; until
       then the docs and the manifest say "never tested with a real device".
 - [ ] **Milestone 2**: instant power of the posts (`Get=P`), posts and
       sub-posts (`Index=P|S`), teleinformation details (`Get=TI`: current
@@ -29,45 +34,34 @@ to date at the end of every milestone.
 
 ## Questions pour cce66
 
-Everything below rests on one source only (the reference library
-pyecodevices_rt2, or the GCE PDF of 2017, or cce66's Api-Deck), so it is to
-be checked on his boxes. Asked as raw answers (with the key removed).
+Answered on 2026-10-31 (t/11448 #7):
 
-1. `GET /api/xdevices.json?key=…&Get=R`: the full answer. Are the keys `R1`
-   to `R10` numbers 0/1? Is `"product": "EcoDevices_RT"` there, in every
-   answer, writes included? It is **required** now (review r1, I1: an answer
-   without it is "not an Eco-Devices answer", one with another product stops
-   everything): if his RT2 does not give it, nothing works. And
-   `"status": "Success"`? (pyecodevices_rt2 only.)
-2. Same for `Get=D` (`D1` to `D12`): which inputs exist on the RT2 itself,
-   which come from an X-8D?
-3. `Get=FP` with his X-4FP: the exact texts (`Confort`, `Eco`, `Hors Gel`,
-   `Arret` or `Arrêt`, `Confort -1`, `Confort -2`) and the value of a zone
-   without extension (pyecodevices_rt2 maps a `0` to "unknown"). `SetFP05=3`
-   on the second X-4FP: does it stop its zone 1? (GCE PDF: 00 to 08, 00 for
-   every zone; the integration never sends 00.)
-4. `Get=XTHL` (if he has an X-THL): keys `THL1-TEMP|HUM|LUM` as numbers?
-   (pyecodevices_rt2; the GCE PDF only says `Get=X` works with ENO and THL.)
-5. `Index=all`: are the keys `Index_TI1`..`Index_TI7`, `Index_TORE1`..,
-   `Index_C1`..? **In which unit** are the teleinformation and clamp
-   indexes: Wh (the code of the Home Assistant integration) or kWh (the
-   example of its README)? Until he answers, they are neither offered nor
-   published (review r1, I3): flip `UNIT_CONFIRMED.ti_tore` and the factor of
-   `meterOf` with his answer. Compare with the index on the meter and on the
-   Eco-Devices page. A counter: raw pulses, or its unit after the
-   coefficient set in the Eco-Devices?
-6. A wrong API key: 401, or a 200 with `"status": "Error"`, or an HTML page?
-   The GCE PDF shows commands answered "without key" (`Get=D`, `Index=all`,
-   `Get=FP`...): do they answer with a wrong key too? (Only `Get=R` is the
-   round's first read here, and a 401 / 403 on it stops the reads.)
-7. Does any answer of the JSON API (or `Get=all`) give the MAC address? The
-   GCE PDF puts it in `status.json` only, behind the user password: the
-   integration then knows a box by its address and port.
-8. Five requests every 15 s (`Get=R`, `Get=D`, `Get=FP`, `Get=XTHL`,
-   `Index=all`): does the Eco-Devices cope, along with its own pages?
-9. The clamps 1 to 4: do they also have a production index (the Home
-   Assistant docs mention it, its code does not read it)?
-10. The firmware version of his RT2 (the API of 2017 is assumed).
+- [x] `Get=R`: `R1`..`R10`, numbers 0/1, with `"product": "EcoDevices_RT"`
+      and `"status": "Success"` (nothing to relax). He sees 10 relays and
+      12 inputs.
+- [x] `Index=all`: keys `Index_TI1`..`7`, `Index_TORE1`..`20` (not 16),
+      `Index_C1`..`12`. TI3 to TI7 read 4294967295 (no entry). Teleinformation
+      in Wh (see the Decisions below); clamps not settled.
+- [x] `Get=FP`: keys `FP1 Zone 1`..`FP2 Zone 4`, values the **number** 0,
+      not a text.
+- [x] Firmware: not given for the RT2 (his ED3 is 1.3.0, his IPX800 V5
+      5.7.2).
+
+Still open, to ask on the forum (short, in French):
+
+1. Pinces : sur la page de l'Eco-Devices, que vaut la pince 1 (en kWh ou en
+   Wh) au moment où l'API donne `Index_TORE1` ? Et que sont les pinces 17 à
+   20 (d'autres pinces, ou la production des pinces 1 à 4) ?
+2. Fil pilote : as-tu un X-4FP branché ? Si oui, que montre sa page pour la
+   zone 1 quand l'API répond 0 ? Change un mode depuis la page, puis
+   renvoie `Get=FP` : le nombre change-t-il ?
+3. `Get=D` : la réponse complète (clés `D1` à `D12`, des nombres 0/1 ?).
+4. `Get=XTHL` si tu as un X-THL : la réponse complète.
+5. Une mauvaise clé d'API : que répond `Get=R` (401, ou une page, ou
+   `"status": "Error"`) ?
+6. La version du firmware du RT2 (page d'accueil ou `status.xml`).
+7. Avec l'intégration lancée : tout va bien à 15 s (cinq requêtes par
+   lecture), la page de l'Eco-Devices reste fluide ?
 
 ## Decisions
 
@@ -85,7 +79,8 @@ be checked on his boxes. Asked as raw answers (with the key removed).
   and default units. Cloned read only in `~/code/ref/gce/` (with the PDF).
   Confirmed by two of them: the path and `key`, `Get=R|D|FP`, `Index=all`,
   `SetR` / `ClearR` 01-10, `SetFPxx` 00-08 and the mode codes, 10 relays,
-  12 inputs, 16 clamps, 12 counters, 7 teleinformation indexes, 2 X-THL.
+  12 inputs, 16 clamps (20 on a real RT2), 12 counters, 7 teleinformation
+  indexes, 2 X-THL.
   The rest is in "Questions pour cce66".
 - **Structure from gladys-ipx800 0.1.3** (same API family as the IPX800 V4,
   reviewed in four rounds and tested by cce66 on a V4 and a V5): the lane of
@@ -123,8 +118,8 @@ be checked on his boxes. Asked as raw answers (with the key removed).
   longer listed is dropped like one of a relay no longer listed.
 - **Indexes**: one Gladys device per index (`ti<n>`, `tore<n>`, `c<n>`).
   Teleinformation and clamps: `energy-sensor/index` in kWh, read in Wh
-  (divided by 1000: the Home Assistant default, to confirm, question 5);
-  listed when above 0 or created. Counters: only those in `counters`
+  (divided by 1000: confirmed for the teleinformation on 2026-10-31, the
+  clamps still to confirm); listed when above 0 or created. Counters: only those in `counters`
   (`C1:water:l`): water and gas `volume-sensor/decimal` in m³ (never an
   energy index), electricity `energy-sensor/index` in kWh; the feature key is
   the type (`water-index`, `gas-index`, `energy-index`): another type adds a
@@ -208,3 +203,39 @@ be checked on his boxes. Asked as raw answers (with the key removed).
 - Scenes on one slow RT2 (review r2, p-scene): 5/5 at 650 ms a request, 4/5
   at 700 ms, 3/5 at 900 ms (the last ones "too slow", nothing sent; Offs
   all go): accepted (one box, one request at a time, 3.5 s budget).
+
+## Decisions after the first real answers (2026-11-01)
+
+- **4294967295 (0xFFFFFFFF) is an entry with nothing behind it**, never an
+  index (TI3 to TI7 on cce66's RT2): `indexNumber` gives undefined for it,
+  any index kind; never offered, published, nor held as a jump (an index
+  turning to it keeps the last one in Gladys, nothing held; back to a real
+  value, published from the same reference).
+- **Teleinformation in Wh, confirmed (`UNIT_CONFIRMED.ti`)**: his RT2 read
+  `Index_TI1` = 132,533,718 and his Eco-Devices 3, on the same Linky a few
+  minutes apart, 132,533,861 (Wh, the ED3 unit): 143 Wh apart, the same
+  meter. In kWh it would be 132 GWh, no home; 132,533 kWh over the years of
+  a Linky is a home. His "unité téléinfo KWH" is the unit his page shows
+  (divided by 1000). The TI indexes are now offered (above 0) and published
+  in kWh; the factor of `meterOf` was already Wh.
+- **Clamps not confirmed (`UNIT_CONFIRMED.tore` false)**: split from the
+  teleinformation (one flag each). His "Pinces en mA affichage en W" speaks
+  of the instant measure, not the index; no index compared with the page
+  yet (question 1). Read up to `Index_TORE20` (`LIMITS_RT2.tore` 20: the
+  GCE PDF said 16, his RT2 answers 20, TORE17, 18, 20 above 0) and counted
+  in the status only.
+- **Pilot wire: a number is not understood**: his `Get=FP` answers the
+  number 0 for the 8 zones. pyecodevices_rt2 (the only source on it) maps a
+  0 to -1, "unknown", and its own live test accepts -1 for a zone; the modes
+  are texts there (`Confort`..`Confort -2`) and the GCE PDF only gives the
+  codes of `SetFPxx` (0 = Comfort for a write). So 0 is most likely "no
+  X-4FP", but a firmware answering the mode codes as numbers (0 = Comfort)
+  cannot be ruled out: a number is never published nor taken for a mode.
+  A zone whose last read is a number is listed in the status; Eco and
+  Comfort (and Comfort -1, -2) are refused there before anything leaves
+  (in `setValue` and again in `checkBeforeSend`); Off and Frost protection
+  still go (protective: never refused by a read; a write to a zone without
+  an X-4FP does nothing), unconfirmed since the read back is a number. A
+  read back or round showing a mode text clears it at once (question 2).
+- **Envelope**: `product` and `status` were in all three answers: kept as
+  they are.

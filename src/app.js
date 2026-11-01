@@ -91,6 +91,7 @@ import {
   numberOf,
   valueOf,
   writeQuery,
+  zoneIsNumber,
 } from './rt2/model.js';
 import { StatePublisher } from './publisher.js';
 import { emptyMemory, fileStore, normalizeMemory } from './store.js';
@@ -246,7 +247,7 @@ export class Rt2App {
     this.heldLogged = new Map();
     /** Counters whose unit changed after their index was published: never published again. */
     this.unitChanged = new Set();
-    /** Teleinformation and clamp indexes read above 0, not offered (unit to confirm). */
+    /** Clamp indexes read above 0, not offered (unit to confirm). */
     this.unconfirmedIndexes = 0;
     /** The monotonic time of the last read an Eco-Devices RT2 answered (its product). */
     this.productAt = undefined;
@@ -1080,7 +1081,10 @@ export class Rt2App {
       for (const code of codes) {
         if (kindOf(code) !== kind) continue;
         const n = numberOf(code);
-        targets.set(code, { code, kind, n, value: json ? valueOf(json, kind, n) : undefined, at });
+        const target = { code, kind, n, value: json ? valueOf(json, kind, n) : undefined, at };
+        // A zone answering a number (not a mode text): its value unknown, said in the status.
+        if (kind === KINDS.PILOT && json && zoneIsNumber(json, n)) target.numeric = true;
+        targets.set(code, target);
       }
     };
     // The relays first: the identity of the answer (the product) and the round depend on them.
@@ -1154,10 +1158,10 @@ export class Rt2App {
       const counter = code.startsWith('c');
       const raw = json ? Object.getOwnPropertyDescriptor(json, indexKey(code))?.value : undefined;
       const meter = meterOf(code, raw, this.config.counters);
-      if (!counter && !UNIT_CONFIRMED.ti_tore) {
-        // The unit of the teleinformation and clamp indexes (Wh or kWh) rests on one source:
-        // never offered nor published until a real Eco-Devices confirms it (a factor 1000
-        // corrected later would be a jump the core counts once).
+      if (!counter && !UNIT_CONFIRMED[code.startsWith('ti') ? 'ti' : 'tore']) {
+        // The unit of the clamp indexes (Wh or kWh) is not confirmed on a real Eco-Devices:
+        // never offered nor published until it is (a factor 1000 corrected later would be a
+        // jump the core counts once). The teleinformation is (Wh, see UNIT_CONFIRMED).
         if (meter?.value !== undefined) unconfirmed += 1;
         continue;
       }
@@ -1317,6 +1321,9 @@ export class Rt2App {
     if (this.unitChanged.size > 0) {
       parts.push(T.unitChanged(listOf([...this.unitChanged].map(shownCode))));
     }
+    const numeric = [...this.model.values()].filter((t) => t.kind === KINDS.PILOT && t.numeric);
+    if (numeric.length > 0)
+      parts.push(T.zonesNumeric(listOf(numeric.map((t) => shownCode(t.code)))));
     if (this.unconfirmedIndexes > 0) parts.push(T.unitsUnconfirmed(this.unconfirmedIndexes));
     if (this.saveFailed || this.storeUnreadable) parts.push(T.storeProblem);
     return join(...parts);
@@ -2134,7 +2141,7 @@ export class Rt2App {
     for (const [code, value] of values) {
       const target = this.model.get(code);
       if (target && value !== undefined) {
-        this.model.set(code, { ...target, value, at });
+        this.model.set(code, { ...target, value, at, numeric: undefined });
       }
     }
     this.applyRead(at, { resend });
@@ -2191,6 +2198,8 @@ export class Rt2App {
     if (kind === KINDS.PILOT && !this.config.allowHeatingModes) {
       throw this.refusal(ERRORS.heatingDisabled);
     }
+    // A zone whose last read is a number (not a mode): what it stands for is not known.
+    if (target.numeric) throw this.refusal(ERRORS.zoneNumeric);
     this.checkNotPaused(received);
     if (this.guards.get(target.code)?.userInFlight) throw this.refusal(ERRORS.stopPending);
     if (this.commands.length >= LIMITS.commandQueue) throw this.refusal(ERRORS.queueFull);
@@ -2250,6 +2259,7 @@ export class Rt2App {
     if (job.kind === KINDS.PILOT && !this.config.allowHeatingModes) {
       throw this.refusal(ERRORS.heatingDisabled);
     }
+    if (this.targetOf(job.code)?.numeric) throw this.refusal(ERRORS.zoneNumeric);
     if (job.kind === KINDS.RELAY && !this.config.relays.has(job.code)) {
       throw this.refusal(ERRORS.readOnly);
     }

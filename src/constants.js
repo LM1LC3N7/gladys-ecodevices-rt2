@@ -9,10 +9,14 @@
 //   `"product": "EcoDevices_RT"` and `"status": "Success"`;
 //   - `Get=R`: the 10 relays `R1`..`R10` (2 of the Eco-Devices, 8 of an X-8R);
 //   - `Get=D`: the 12 digital inputs `D1`..`D12`;
-//   - `Get=FP`: the zones of the X-4FP, `FP<ext> Zone <z>` as a text;
+//   - `Get=FP`: the zones of the X-4FP, `FP<ext> Zone <z>` as a text; a
+//     number instead (0 on cce66's RT2, 2026-10-31) is not understood
+//     (pyecodevices_rt2 maps a 0 to "unknown": no X-4FP on that zone);
 //   - `Get=XTHL`: the X-THL `THL<n>-TEMP|HUM|LUM`;
 //   - `Index=all`: the indexes, `Index_TI<n>` (teleinformation),
-//     `Index_TORE<n>` (current clamps), `Index_C<n>` (pulse counters);
+//     `Index_TORE<n>` (current clamps, up to 20 on cce66's RT2), `Index_C<n>`
+//     (pulse counters); 4294967295 (0xFFFFFFFF) is an entry with nothing
+//     behind it (TI3 to TI7 on cce66's RT2), never an index;
 //   - `SetR=01` / `ClearR=01` switch a relay on / off (01 to 10);
 //   - `SetFPxx=y` sets the pilot-wire zone xx (01 to 08, never 00: "every
 //     zone"): 0 Comfort, 1 Eco, 2 Frost protection, 3 Off, 4 Comfort -1,
@@ -123,7 +127,9 @@ export const POLL_INTERVAL = { min: 5, max: 300, default: 15 };
 /**
  * Sizes of the Eco-Devices RT2 (the API answers them all, wired or not):
  * relays 2 + 8 (X-8R), inputs 12, pilot-wire zones 8 (two X-4FP: `SetFP01`
- * to `SetFP08`), 2 X-THL, 7 teleinformation indexes, 16 clamps, 12 counters.
+ * to `SetFP08`), 2 X-THL, 7 teleinformation indexes, 20 clamps (16 in the GCE
+ * PDF of 2017, `Index_TORE17` to `Index_TORE20` in the answer of a real RT2),
+ * 12 counters.
  */
 export const LIMITS_RT2 = {
   relays: 10,
@@ -132,7 +138,7 @@ export const LIMITS_RT2 = {
   zones: 8,
   thl: 2,
   ti: 7,
-  tore: 16,
+  tore: 20,
   counters: 12,
 };
 
@@ -144,11 +150,18 @@ export const RANGES = {
 };
 
 /**
- * The units confirmed on a real Eco-Devices RT2. Teleinformation and clamps: Wh in the code of
- * the Home Assistant integration, kWh in the example of its README; the GCE PDF and cce66's
- * tool say nothing. Until cce66 confirms, those indexes are neither offered nor published.
+ * The units confirmed on a real Eco-Devices RT2 (cce66, 2026-10-31).
+ * Teleinformation: Wh. `Index_TI1` read 132,533,718 on his RT2 and the
+ * teleinformation index of his Eco-Devices 3 on the same Linky 132,533,861
+ * (Wh, the unit of the ED3) minutes apart: the same meter, 143 Wh apart; in
+ * kWh it would be 132 GWh, not a home. Clamps: not confirmed (the unit of
+ * their index is not compared with the page of the Eco-Devices yet): neither
+ * offered nor published.
  */
-export const UNIT_CONFIRMED = { ti_tore: false };
+export const UNIT_CONFIRMED = { ti: true, tore: false };
+
+/** An entry of `Index=all` with nothing behind it (0xFFFFFFFF): never an index. */
+export const INDEX_ABSENT = 4_294_967_295;
 
 /** An index read (Wh, litres, m³, kWh): a positive number up to this, else unknown. */
 export const INDEX_MAX = 1e13;

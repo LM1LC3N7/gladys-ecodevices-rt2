@@ -34,7 +34,7 @@ export function answerOf(world, query) {
     }
   } else if (query === 'all') {
     for (let n = 1; n <= 7; n += 1) out[`Index_TI${n}`] = world.TI[n];
-    for (let n = 1; n <= 16; n += 1) out[`Index_TORE${n}`] = world.TORE[n];
+    for (let n = 1; n < world.TORE.length; n += 1) out[`Index_TORE${n}`] = world.TORE[n];
     for (let n = 1; n <= 12; n += 1) out[`Index_C${n}`] = world.C[n];
   }
   return out;
@@ -66,8 +66,10 @@ export function fakeRt2(options = {}) {
     /** Wh. */
     TI: [0, 12_345_678, 2_345_678, 0, 0, 0, 0, 0],
     /** Wh. */
-    TORE: Array(17).fill(0),
+    TORE: Array(21).fill(0),
     C: Array(13).fill(0),
+    /** Groups answered with a fixed answer (a real one): 'all' -> json. */
+    fixtures: new Map(),
     /** Every read (not the writes) answers this status when set. */
     failReads: undefined,
     /** Groups that fail: 'FP' -> status. */
@@ -175,6 +177,7 @@ function respond(world, record) {
   const group = params.get('Get') ?? (params.get('Index') === 'all' ? 'all' : undefined);
   if (group) {
     if (world.failGroups.has(group)) return json({}, world.failGroups.get(group));
+    if (world.fixtures.has(group)) return json(world.fixtures.get(group));
     return json(answerOf(world, group));
   }
   // `noWriteProduct`: a firmware whose write answers carry no `product`.

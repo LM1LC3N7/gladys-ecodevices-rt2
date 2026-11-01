@@ -8,8 +8,9 @@ sensors (temperature, humidity, luminosity).
 
 > Never tested with a real device: written from the API documentation of GCE
 > Electronics ("API Eco Devices RT", 2017), the open library of the Home
-> Assistant integration (pyecodevices_rt2) and cce66's test tools. Tell us
-> what you see on yours. Not affiliated with GCE Electronics.
+> Assistant integration (pyecodevices_rt2), cce66's test tools and the
+> answers of his RT2 to its reads (October 2026). Tell us what you see on
+> yours. Not affiliated with GCE Electronics.
 
 ## Installation
 
@@ -68,8 +69,8 @@ value.
 
 | On the Eco-Devices RT2                | In Gladys                                                        | Code (in the name) |
 | ------------------------------------- | ---------------------------------------------------------------- | ------------------ |
-| Teleinformation index 1 to 7          | not yet (see "Units" below)                                      | `TI1`              |
-| Current clamp 1 to 16                 | not yet (see "Units" below)                                      | `TORE3`            |
+| Teleinformation index 1 to 7          | energy index (kWh)                                               | `TI1`              |
+| Current clamp 1 to 20                 | not yet (see "Units" below)                                      | `TORE3`            |
 | Pulse counter 1 to 12 (when listed)   | water or gas index (m³), or energy index (kWh)                   | `C1`               |
 | Relay 1 to 10 (2 + an X-8R)           | read only, or a switch / light when you list it                  | `R3`               |
 | Input 1 to 12                         | a binary input (read only)                                       | `D3`               |
@@ -83,7 +84,13 @@ n = 4 × (e − 1) + z (two X-4FP at most).
 The Eco-Devices is read every 15 seconds by default (5 s at least): the
 relays, then the inputs, the zones (when listed), the X-THL (when listed) and
 the indexes, one request after the other. A value the Eco-Devices does not
-give (absent, a text, out of range) is not published: never as 0. When the
+give (absent, a text, out of range) is not published: never as 0. An index
+read 4294967295 is an entry with nothing behind it (a teleinformation input
+without a meter): never offered nor published, never a jump. A zone of an
+X-4FP that answers a number instead of a mode (0 on a real RT2: no X-4FP
+there, or a firmware we do not know yet) is not published; the status lists
+it, Eco and Comfort are refused there, Off and Frost protection are still
+sent. When the
 relays cannot be read, the whole read fails; when another group fails, its
 values are not published this time and the status says so.
 
@@ -113,12 +120,13 @@ a guard.
   measured time since): a jump of the system clock never widens its margin.
 - When `/data` cannot be written or read, no index is published.
 
-**Units.** The unit of the teleinformation and clamp indexes (Wh or kWh) is
-confirmed by no sure source (the code of the Home Assistant integration says
-Wh, the example of its documentation kWh, the GCE documentation nothing). A
-factor of 1000 corrected later would be a jump counted once as consumption:
-these indexes are therefore **neither offered nor published** until a real
-Eco-Devices confirms it; the status says how many were read. A pulse counter
+**Units.** The teleinformation indexes are read in Wh and published in kWh:
+confirmed on a real RT2, whose TI1 matched, within 143 Wh, the index an
+Eco-Devices 3 (Wh) read on the same meter. Its own page may show kWh: same
+value, divided by 1000. The unit of the clamp indexes (Wh or kWh) is not
+confirmed yet; a factor of 1000 corrected later would be a jump counted once
+as consumption: the clamps are therefore **neither offered nor published**
+until it is; the status says how many were read. A pulse counter
 is read in the unit you give: compare the first value published with the
 meter. A counter whose **type** you change gets a new feature, which starts
 from the first value read. If you change its **unit** after its index was
@@ -266,8 +274,8 @@ that succeeds.
 
 ## Limits
 
-- Pulse counters, relays, inputs, X-4FP and X-THL only (the
-  teleinformation and clamp indexes wait for their unit to be confirmed): the instant power, the posts and sub-posts, the prices, the
+- Teleinformation, pulse counters, relays, inputs, X-4FP and X-THL only
+  (the clamp indexes wait for their unit to be confirmed): the instant power, the posts and sub-posts, the prices, the
   virtual outputs and EnOcean are not in this version.
 - Three Eco-Devices at most per integration.
 - Known by its address and port (see above). One address in two slots: the

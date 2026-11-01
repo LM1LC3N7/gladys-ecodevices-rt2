@@ -262,8 +262,13 @@ export const T = {
     ),
   unitsUnconfirmed: (count) =>
     both(
-      `${count} teleinformation or clamp index(es) read but not offered: their unit (Wh or kWh) is not confirmed on a real Eco-Devices yet (see the guide).`,
-      `${count} index de téléinformation ou de pince lu(s) mais non proposé(s) : leur unité (Wh ou kWh) n’est pas encore confirmée sur un vrai Eco-Devices (voir le guide).`,
+      `${count} clamp index(es) read but not offered: their unit (Wh or kWh) is not confirmed on a real Eco-Devices yet (see the guide).`,
+      `${count} index de pince lu(s) mais non proposé(s) : leur unité (Wh ou kWh) n’est pas encore confirmée sur un vrai Eco-Devices (voir le guide).`,
+    ),
+  zonesNumeric: (list) =>
+    both(
+      `Pilot-wire zone(s) answering a number instead of a mode (no X-4FP there?): ${list.en}. Not published; Eco and Comfort refused there, Off and Frost protection still sent.`,
+      `Zone(s) de fil pilote qui répondent un nombre au lieu d’un mode (pas de X-4FP ?) : ${list.fr}. Non publiée(s) ; Éco et Confort y sont refusés, Arrêt et Hors-gel restent envoyés.`,
     ),
   guardsPending: (list) =>
     both(
@@ -410,6 +415,10 @@ export const ERRORS = {
   notCommandable: both(
     'This feature is read only: nothing was sent.',
     'Cette fonctionnalité est en lecture seule : rien n’a été envoyé.',
+  ),
+  zoneNumeric: both(
+    'This zone answers a number instead of a mode (no X-4FP there?): Eco and Comfort are refused, nothing was sent.',
+    'Cette zone répond un nombre au lieu d’un mode (pas de X-4FP ?) : Éco et Confort sont refusés, rien n’a été envoyé.',
   ),
   heatingDisabled: both(
     'Heating modes (Comfort, Eco) are off in the configuration: nothing was sent. Off and Frost protection need no option.',
