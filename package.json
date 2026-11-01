@@ -1,6 +1,6 @@
 {
   "name": "gladys-ecodevices-rt2",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Gladys Assistant integration for the GCE Eco-Devices RT2 (indexes, relays, inputs, pilot wire, X-THL) through its local JSON API.",
   "type": "module",

@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-01
+
 ### Changed
 
 - From the answers of a real Eco-Devices RT2 (cce66): teleinformation indexes
@@ -50,5 +52,6 @@ the notes of the version's GitHub Release.
   devices"; a write answer without "product" is taken after the product
   read; a read without it is named in the status.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/releases/tag/v0.1.1
