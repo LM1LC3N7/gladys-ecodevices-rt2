@@ -294,3 +294,18 @@ Still open, to ask on the forum (short, in French):
 - M4: Frost protection on a numeric zone is not tested (a mutant refusing it survives): add it to the Off test.
 - M5: the intro of `docs/fr.md` and `docs/en.md` (lines 3-7) still announces the clamps.
 - M6: no `timeout-minutes` in `.github/workflows/ci.yml`.
+
+## Next patch (review cce66-n9 r1, 89a5373)
+
+- m1: an unknown mode text (e.g. "Confort-1"), a missing key or `null` also count as "no mode", but
+  the message says "answers a number or nothing" and the CHANGELOG does not say it. Fix the text,
+  add the line, and test missing key, unknown text and `null` (mutant "number only" survives).
+- m2: docs: say the window after updating from 0.1.2 (or back to an old address): during the first
+  read, Comfort can still leave on a zone that answers 0 (`SetFP01=0`).
+- m3: an Off clicked on a "number" zone stays kept with no time limit; once an X-4FP is wired and
+  the zone answers a mode, the next read sends `SetFP01=3`. Say it in the docs (lifting the guard on
+  the first mode read is Louis's call). Test the 3 resends after a restart (mutant survives).
+- m4: test the /data write right after a read-back that answers a number (mutant survives).
+- m5: TORE17+ are a leftover on cce66's RT2 only; on a RT2 with an X400 CT wired they are real
+  clamps. Reword docs/CHANGELOG, fix the `src/constants.js:17` comment ("up to 20"), and revisit
+  the 16 limit once the clamp unit is confirmed.
