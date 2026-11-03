@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-03
+
 ### Fixed
 
 - Pilot wire: a zone answering a number (or nothing) instead of a mode refuses
@@ -69,6 +71,7 @@ the notes of the version's GitHub Release.
   devices"; a write answer without "product" is taken after the product
   read; a read without it is named in the status.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-ecodevices-rt2/releases/tag/v0.1.1
