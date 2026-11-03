@@ -267,8 +267,8 @@ export const T = {
     ),
   zonesNumeric: (list) =>
     both(
-      `Pilot-wire zone(s) answering a number or nothing instead of a mode (no X-4FP there?): ${list.en}. Not published; Eco and Comfort refused there until a mode is read, Off and Frost protection still sent.`,
-      `Zone(s) de fil pilote qui répondent un nombre ou rien au lieu d’un mode (pas de X-4FP ?) : ${list.fr}. Non publiée(s) ; Éco et Confort y sont refusés tant qu’aucun mode n’est lu, Arrêt et Hors-gel restent envoyés.`,
+      `Pilot-wire zone(s) answering no known mode (a number, nothing or an unknown text; no X-4FP there?): ${list.en}. Not published; Eco and Comfort refused there until a mode is read, Off and Frost protection still sent.`,
+      `Zone(s) de fil pilote qui ne répondent aucun mode connu (un nombre, rien ou un texte inconnu ; pas de X-4FP ?) : ${list.fr}. Non publiée(s) ; Éco et Confort y sont refusés tant qu’aucun mode n’est lu, Arrêt et Hors-gel restent envoyés.`,
     ),
   guardsPending: (list) =>
     both(
@@ -422,8 +422,8 @@ export const ERRORS = {
     'Cette fonctionnalité est en lecture seule : rien n’a été envoyé.',
   ),
   zoneNumeric: both(
-    'This zone answers a number or nothing instead of a mode (no X-4FP there?): Eco and Comfort are refused until a mode is read, nothing was sent.',
-    'Cette zone répond un nombre ou rien au lieu d’un mode (pas de X-4FP ?) : Éco et Confort sont refusés tant qu’aucun mode n’est lu, rien n’a été envoyé.',
+    'This zone answers no known mode (a number, nothing or an unknown text; no X-4FP there?): Eco and Comfort are refused until a mode is read, nothing was sent.',
+    'Cette zone ne répond aucun mode connu (un nombre, rien ou un texte inconnu ; pas de X-4FP ?) : Éco et Confort sont refusés tant qu’aucun mode n’est lu, rien n’a été envoyé.',
   ),
   heatingDisabled: both(
     'Heating modes (Comfort, Eco) are off in the configuration: nothing was sent. Off and Frost protection need no option.',
@@ -488,6 +488,10 @@ export const ERRORS = {
   unconfirmed: both(
     'Sent, without confirmation: the Eco-Devices is read again in a few seconds.',
     'Envoyée, sans confirmation : l’Eco-Devices est relu dans quelques secondes.',
+  ),
+  unconfirmable: both(
+    'Sent, cannot be confirmed: this zone answers no known mode (no X-4FP there?), no read can show it.',
+    'Envoyée, impossible à confirmer : cette zone ne répond aucun mode connu (pas de X-4FP ?), aucune lecture ne peut le montrer.',
   ),
   rejected: both(
     'Sent, but the Eco-Devices answered an error: it is read again in a few seconds.',

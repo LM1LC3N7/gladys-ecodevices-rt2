@@ -10,6 +10,23 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pilot wire: the status and the refusal say "no known mode (a number,
+  nothing or an unknown text)": since 0.1.3, a zone answering a text not
+  known, `null` or no key at all also refuses Eco and Comfort (the notes of
+  0.1.3 said only "a number or nothing").
+- Pilot wire: the ack of an Off or a Frost protection sent to such a zone
+  says "sent, cannot be confirmed", no longer "read again in a few seconds".
+
+### Changed
+
+- Docs: the window before the first answer of a zone also covers the first
+  read after updating from 0.1.2 and after a change of address; an Off kept
+  for a zone without a mode is sent again once that zone answers another
+  mode (choose the mode in Gladys to lift it); clamps 17 and beyond are a
+  leftover on the tester's RT2 only.
+
 ## [0.1.3] - 2026-11-03
 
 ### Fixed

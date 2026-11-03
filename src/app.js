@@ -786,7 +786,8 @@ export class Rt2App {
   }
 
   /**
-   * What a `Get=FP` answer says of the zones `codes`: a mode text, or not (a number, nothing):
+   * What a `Get=FP` answer says of the zones `codes`: a mode text, or not (a number, nothing,
+   * null, a text not known):
    * then Eco and Comfort are refused there until a mode text is read. true when it changed.
    */
   noteZones(json, codes) {
@@ -2452,7 +2453,13 @@ export class Rt2App {
     await this.refreshStatus();
     const value = read.values.get(code);
     if (value === wanted) return undefined;
-    if (value === undefined) throw this.refusal(ERRORS.unconfirmed);
+    if (value === undefined) {
+      // A zone answering no known mode: no read back can ever confirm it (review n9 r1, m3).
+      if (kind === KINDS.PILOT && this.unknownZones.has(code)) {
+        throw this.refusal(ERRORS.unconfirmable);
+      }
+      throw this.refusal(ERRORS.unconfirmed);
+    }
     throw this.refusal(ERRORS.notApplied(describe(kind, value), describe(kind, wanted)));
   }
 

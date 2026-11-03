@@ -14,7 +14,8 @@
 //     (pyecodevices_rt2 maps a 0 to "unknown": no X-4FP on that zone);
 //   - `Get=XTHL`: the X-THL `THL<n>-TEMP|HUM|LUM`;
 //   - `Index=all`: the indexes, `Index_TI<n>` (teleinformation),
-//     `Index_TORE<n>` (current clamps, up to 20 on cce66's RT2), `Index_C<n>`
+//     `Index_TORE<n>` (current clamps 1-16; cce66's RT2 also
+//     answers 17-20, an X400 CT extension once wired, frozen there), `Index_C<n>`
 //     (pulse counters); 4294967295 (0xFFFFFFFF) is an entry with nothing
 //     behind it (TI3 to TI7 on cce66's RT2), never an index;
 //   - `SetR=01` / `ClearR=01` switch a relay on / off (01 to 10);

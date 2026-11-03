@@ -95,19 +95,23 @@ les index, une requête après l’autre. Une valeur que l’Eco-Devices ne donn
 pas (absente, un texte, hors plage) n’est pas publiée : jamais comme 0. Un
 index lu à 4294967295 est une entrée sans rien derrière (une entrée de
 téléinformation sans compteur) : jamais proposé ni publié, jamais un saut.
-Une zone de X-4FP qui répond un nombre ou rien au lieu d’un mode (0 sur un
-vrai RT2 : pas de X-4FP à cet endroit, ou un firmware que nous ne
-connaissons pas encore) n’est pas publiée ; l’état la cite, Éco et Confort y
-sont refusés dès cette réponse (relecture après une commande et lecture en
-cours comprises ; retenu après un redémarrage) jusqu’à ce qu’un mode soit
-lu, Arrêt et Hors-gel restent envoyés. Avant la toute première réponse pour
-une zone (une zone qui vient d’être listée), rien n’est encore connu : Éco
-et Confort partent s’ils sont autorisés. Un Arrêt ou un Hors-gel envoyé à
+Une zone de X-4FP qui ne répond aucun mode connu (un nombre, rien, ou un
+texte que nous ne connaissons pas ; 0 sur un vrai RT2 : pas de X-4FP à cet
+endroit, ou un firmware que nous ne connaissons pas encore) n’est pas
+publiée ; l’état la cite, Éco et Confort y sont refusés dès cette réponse
+(relecture après une commande et lecture en cours comprises ; retenu après
+un redémarrage) jusqu’à ce qu’un mode soit lu, Arrêt et Hors-gel restent
+envoyés. Avant la toute première réponse pour une zone, rien n’est encore
+connu : Éco et Confort partent s’ils sont autorisés. C’est le cas d’une zone
+qui vient d’être listée, de la première lecture après une mise à jour depuis
+la 0.1.2 ou avant, et de la première lecture après un changement d’adresse
+(retour à une ancienne adresse compris). Un Arrêt ou un Hors-gel envoyé à
 une telle zone ne peut pas être confirmé par une lecture : l’état dit
 « envoyé, impossible à confirmer », et il est renvoyé à chacun des trois
-redémarrages suivants (sens protecteur, sans effet sur une zone sans X-4FP).
-Si
-les relais ne peuvent pas être lus, la lecture entière est en échec ; si un
+redémarrages suivants. Il reste gardé, sans limite de temps : quand cette
+zone répondra un mode (un X-4FP câblé), un Arrêt gardé pour elle est
+renvoyé si un autre mode est lu ; choisissez le mode dans Gladys pour le
+lever. Si les relais ne peuvent pas être lus, la lecture entière est en échec ; si un
 autre groupe échoue, ses valeurs ne sont pas publiées cette fois et l’état
 le dit.
 
@@ -151,9 +155,10 @@ l’Eco-Devices (qui n’affiche que la puissance instantanée d’une pince) ; 
 erreur d’un facteur 1000, corrigée plus tard, serait un saut compté une fois
 comme consommation : les pinces ne sont donc **ni proposées ni publiées**
 tant qu’elle ne l’est pas ; l’état dit combien ont été lues. Seules les
-pinces 1 à 16 sont lues : un vrai RT2 répond aussi `Index_TORE17` et au-delà,
-reliquat d’une extension X400 CT autrefois câblée (valeurs figées), jamais
-proposé. Un compteur d’impulsions est lu dans l’unité que vous
+pinces 1 à 16 sont lues : le RT2 du testeur répond aussi `Index_TORE17` et
+au-delà, reliquat chez lui d’une extension X400 CT autrefois câblée (valeurs
+figées), jamais proposé. Avec une X400 CT câblée aujourd’hui, ce seraient de
+vraies pinces : à revoir quand l’unité d’une pince sera confirmée. Un compteur d’impulsions est lu dans l’unité que vous
 indiquez : comparez la première valeur publiée au compteur. Un compteur dont
 vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la
 première valeur lue. Si vous changez son **unité** après la publication de

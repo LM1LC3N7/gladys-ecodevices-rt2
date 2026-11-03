@@ -212,17 +212,25 @@ test('his X-4FP answer (numbers): no mode published, said; Eco and Comfort refus
   await wait(15 * SECOND);
   assert.deepEqual(states(F('pilot-wire', 'fp1', 'mode')), []);
   assert.deepEqual(states(F('pilot-wire', 'fp5', 'mode')), []);
-  assert.match(message(gladys), /answering a number or nothing instead of a mode .*FP1/);
-  assert.match(message(gladys, 'fr'), /répondent un nombre ou rien au lieu d’un mode/);
+  assert.match(
+    message(gladys),
+    /answering no known mode \(a number, nothing or an unknown text; no X-4FP there\?\): .*FP1/,
+  );
+  assert.match(
+    message(gladys, 'fr'),
+    /ne répondent aucun mode connu \(un nombre, rien ou un texte inconnu/,
+  );
   for (const mode of [PILOT.COMFORT, PILOT.ECO, PILOT.COMFORT_1, PILOT.COMFORT_2]) {
     const refused = await cmd(devices[0], F('pilot-wire', 'fp1', 'mode'), mode);
     assert.equal(refused.success, false);
-    assert.match(refused.error, /répond un nombre ou rien au lieu d’un mode/);
+    assert.match(refused.error, /ne répond aucun mode connu/);
   }
   assert.equal(world.writes().length, 0, 'nothing sent');
   const off = await cmd(devices[1], F('pilot-wire', 'fp5', 'mode'), PILOT.OFF);
   assert.match(world.writes().at(-1).path, /SetFP05=3$/, 'a protective Off is never refused');
   assert.equal(off.success, false, 'not confirmed: the zone reads a number');
+  // Its ack says no read can confirm it, never "read again in a few seconds" (review n9 r1, m3).
+  assert.match(off.error, /^Envoyée, impossible à confirmer : cette zone ne répond aucun mode/);
   const frost = await cmd(devices[2], F('pilot-wire', 'fp6', 'mode'), PILOT.FROST_PROTECTION);
   assert.match(world.writes().at(-1).path, /SetFP06=2$/, 'nor a protective Frost protection');
   assert.equal(frost.success, false, 'not confirmed: the zone reads a number');
@@ -246,10 +254,10 @@ test('a zone answering a mode text again is understood again: Comfort then goes'
     config: { ...CONFIG, extensions: 'FP1', allow_heating_modes: true },
   });
   await start();
-  assert.match(message(gladys), /answering a number/);
+  assert.match(message(gladys), /answering no known mode/);
   world.fixtures.delete('FP');
   await wait(15 * SECOND);
-  assert.doesNotMatch(message(gladys), /answering a number/);
+  assert.doesNotMatch(message(gladys), /answering no known mode/);
   assert.equal(gladys.fake.lastState(F('pilot-wire', 'fp1', 'mode')), PILOT.OFF);
   const comfort = await cmd(devices[0], F('pilot-wire', 'fp1', 'mode'), PILOT.COMFORT);
   assert.equal(comfort.success, true, comfort.error);
@@ -266,7 +274,7 @@ test('a read back showing a mode text clears the number at once: Comfort goes be
     config: { ...CONFIG, extensions: 'FP1', allow_heating_modes: true },
   });
   await start();
-  assert.match(message(gladys), /answering a number/);
+  assert.match(message(gladys), /answering no known mode/);
   world.fixtures.delete('FP');
   const reads = world.reads().length;
   const off = await cmd(devices[0], F('pilot-wire', 'fp1', 'mode'), PILOT.OFF);
@@ -292,18 +300,21 @@ const ZONES = { ...CONFIG, extensions: 'FP1', allow_heating_modes: true };
 test('M1: a read back answering a number refuses Comfort at once (the text read before is not kept)', async () => {
   const devices = [created('pilot-wire', 'fp1')];
   const world = fakeRt2();
-  const { app, gladys, start, cmd } = await setup({ world, devices, config: ZONES });
+  const { app, gladys, start, cmd, store } = await setup({ world, devices, config: ZONES });
   await start();
   assert.equal(gladys.fake.lastState(FP1), PILOT.OFF, 'a mode text read first');
+  assert.deepEqual(store.data.unknownZones, []);
   world.ignoreWrites = true;
   world.FP[1] = 0;
   const reads = world.reads().length;
   const eco = await cmd(devices[0], FP1, PILOT.ECO);
   assert.equal(eco.success, false, 'the read back shows no mode');
   assert.equal(world.writes().length, 1);
+  // Written to /data by the read back itself, not by a round (review n9 r1, m4).
+  assert.deepEqual(store.data.unknownZones, ['fp1']);
   const comfort = await cmd(devices[0], FP1, PILOT.COMFORT);
   assert.equal(comfort.success, false);
-  assert.match(comfort.error, /répond un nombre ou rien au lieu d’un mode/);
+  assert.match(comfort.error, /ne répond aucun mode connu/);
   assert.equal(world.writes().length, 1, 'nothing sent');
   assert.ok(
     !world
@@ -338,7 +349,7 @@ test('M1: a round whose Get=FP answered a number refuses Comfort before the roun
   assert.equal(world.inFlight, 1);
   const comfort = await cmd(devices[0], FP1, PILOT.COMFORT);
   assert.equal(comfort.success, false);
-  assert.match(comfort.error, /répond un nombre ou rien/);
+  assert.match(comfort.error, /ne répond aucun mode connu/);
   assert.equal(world.writes().length, 0, 'nothing sent');
   app.stop();
 });
@@ -364,7 +375,7 @@ test('M1: kept in /data: after a restart Comfort is refused before the first rou
   await second.wait(100);
   const comfort = await second.cmd(devices[0], FP1, PILOT.COMFORT);
   assert.equal(comfort.success, false);
-  assert.match(comfort.error, /répond un nombre ou rien/);
+  assert.match(comfort.error, /ne répond aucun mode connu/);
   assert.equal(world.writes().length, 0, 'nothing sent');
   assert.ok(
     !world.requests.slice(before).some((r) => /Get=FP/.test(r.path) && r.end !== undefined),
@@ -415,7 +426,70 @@ test('M1: a Comfort clicked while the read back of an Eco is in flight is refuse
   const [first, second] = await act(Promise.all([eco, comfort]));
   assert.equal(first.success, false, 'Eco sent, its read back shows no mode');
   assert.equal(second.success, false);
-  assert.match(second.error, /répond un nombre ou rien/);
+  assert.match(second.error, /ne répond aucun mode connu/);
   assert.equal(world.writes().length, 1, 'Comfort never left');
   app.stop();
+});
+
+// Review cce66-n9 r1, m1: "no mode" is any answer that is not a mode text, not only a number.
+for (const [name, answer] of [
+  ['a missing key', undefined],
+  ['null', null],
+  ['an unknown text', 'Confort-1'],
+]) {
+  test(`m1: a zone answering ${name} refuses Eco and Comfort, unsent, and is said`, async () => {
+    const devices = [created('pilot-wire', 'fp1')];
+    const world = fakeRt2();
+    const { app, gladys, start, cmd, wait } = await setup({ world, devices, config: ZONES });
+    await start();
+    assert.equal(gladys.fake.lastState(FP1), PILOT.OFF, 'a mode text read first');
+    world.FP[1] = answer;
+    await wait(15 * SECOND);
+    assert.match(message(gladys), /answering no known mode .*: FP1\./);
+    for (const mode of [PILOT.COMFORT, PILOT.ECO]) {
+      const refused = await cmd(devices[0], FP1, mode);
+      assert.equal(refused.success, false);
+      assert.match(refused.error, /ne répond aucun mode connu/);
+    }
+    assert.equal(world.writes().length, 0, 'nothing sent');
+    app.stop();
+  });
+}
+
+// Review cce66-n9 r1, m3: the Off kept for a zone answering no mode is sent again at each of the
+// next 3 restarts (never confirmed), then no more; the status keeps saying it.
+test('m3: an Off on a zone answering a number is sent again at the next 3 restarts, then not', async () => {
+  const devices = [created('pilot-wire', 'fp1')];
+  const world = hisRt2();
+  const first = await setup({ world, devices, config: ZONES });
+  await first.start();
+  const off = await first.cmd(devices[0], FP1, PILOT.OFF);
+  assert.equal(off.success, false, 'not confirmed: the zone reads a number');
+  assert.equal(world.writes().length, 1);
+  first.app.stop();
+  const sent = [];
+  let last;
+  for (let i = 0; i < 4; i += 1) {
+    const before = world.writes().length;
+    last = await setup({
+      world,
+      devices,
+      config: ZONES,
+      store: first.store,
+      clock: first.clock,
+    });
+    await last.start();
+    await last.wait(15 * SECOND);
+    const writes = world.writes().slice(before);
+    assert.ok(
+      writes.every((w) => /SetFP01=3$/.test(w.path)),
+      writes.map((w) => w.path).join(' '),
+    );
+    sent.push(writes.length);
+    if (i < 3) last.app.stop();
+  }
+  assert.deepEqual(sent, [1, 1, 1, 0]);
+  assert.match(message(last.gladys), /Off \/ Frost protection sent, cannot be confirmed .*: FP1/);
+  assert.doesNotMatch(message(last.gladys), /sent again|check on site/);
+  last.app.stop();
 });

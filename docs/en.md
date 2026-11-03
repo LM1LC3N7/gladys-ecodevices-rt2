@@ -89,16 +89,21 @@ the indexes, one request after the other. A value the Eco-Devices does not
 give (absent, a text, out of range) is not published: never as 0. An index
 read 4294967295 is an entry with nothing behind it (a teleinformation input
 without a meter): never offered nor published, never a jump. A zone of an
-X-4FP that answers a number or nothing instead of a mode (0 on a real RT2:
-no X-4FP there, or a firmware we do not know yet) is not published; the
-status lists it, Eco and Comfort are refused there from that answer on
-(a read back after a command, or a read still in progress, included; kept
-across a restart) until a mode is read, Off and Frost protection are still
-sent. Before the very first answer for a zone (a zone just listed), nothing
-is known of it yet: Eco and Comfort go when allowed. An Off or a Frost
-protection sent to such a zone cannot be confirmed by a read: the status
-says "sent, cannot be confirmed", and it is sent again at each of the next
-three restarts (protective, harmless on a zone without an X-4FP). When the
+X-4FP that answers no known mode (a number, nothing, or a text we do not
+know; 0 on a real RT2: no X-4FP there, or a firmware we do not know yet) is
+not published; the status lists it, Eco and Comfort are refused there from
+that answer on (a read back after a command, or a read still in progress,
+included; kept across a restart) until a mode is read, Off and Frost
+protection are still sent. Before the very first answer for a zone, nothing
+is known of it yet: Eco and Comfort go when allowed. That is the case of a
+zone just listed, of the first read after updating from 0.1.2 or older, and
+of the first read after a change of address (back to an old address
+included). An Off or a Frost protection sent to such a zone cannot be
+confirmed by a read: the status says "sent, cannot be confirmed", and it is
+sent again at each of the next three restarts. It stays kept, with no time
+limit: once that zone answers a mode (an X-4FP wired), an Off kept for it
+is sent again if another mode is read; choose the mode in Gladys to lift
+it. When the
 relays cannot be read, the whole read fails; when another group fails, its
 values are not published this time and the status says so.
 
@@ -137,8 +142,10 @@ cannot be compared with the page of the Eco-Devices (which shows only the
 instant power of a clamp); a factor of 1000 corrected later would be a jump
 counted once as consumption: the clamps are therefore **neither offered nor
 published** until it is; the status says how many were read. Only clamps 1
-to 16 are read: a real RT2 also answers `Index_TORE17` and beyond, what is
-left of an X400 CT extension once wired (frozen values), never offered. A pulse counter
+to 16 are read: the RT2 of the tester also answers `Index_TORE17` and
+beyond, what is left there of an X400 CT extension once wired (frozen
+values), never offered. With an X400 CT wired today they would be real
+clamps: to be looked at again once the unit of a clamp is confirmed. A pulse counter
 is read in the unit you give: compare the first value published with the
 meter. A counter whose **type** you change gets a new feature, which starts
 from the first value read. If you change its **unit** after its index was
