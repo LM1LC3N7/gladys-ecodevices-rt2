@@ -6,9 +6,12 @@
 //   never an index (never offered, published, nor held as a jump);
 // - the teleinformation index is in Wh (TI1 = the index of his Eco-Devices 3
 //   on the same Linky, 143 Wh apart): offered and published in kWh;
-// - the clamps go up to `Index_TORE20`; their unit is still unconfirmed;
+// - the clamps are 1 to 16; `Index_TORE17` and beyond are what is left of an
+//   X400 CT extension once wired (cce66, post 9: frozen values), never read;
+//   the unit of a clamp index is still unconfirmed;
 // - `Get=FP` answers numbers (0), not mode texts: never published as a mode,
-//   Eco and Comfort refused there, Off and Frost protection still sent.
+//   Eco and Comfort refused there (from the first answer, read backs and
+//   restarts included), Off and Frost protection still sent.
 // -----------------------------------------------------------------------------
 
 import { test } from 'node:test';
@@ -23,6 +26,7 @@ import {
   valueOf,
   zoneIsNumber,
 } from '../src/rt2/model.js';
+import { normalizeMemory } from '../src/store.js';
 import { fakeRt2 } from './helpers/fakeRt2.js';
 import { CONFIG, F, SECOND, created, setup } from './helpers/app.js';
 
@@ -116,7 +120,7 @@ test('his answers: the envelope is an Eco-Devices RT2 one, nothing to relax', ()
     assert.deepEqual(checkEnvelope(json), { ok: true });
 });
 
-test('his answers, read: 4294967295 is no index; TORE20 is a clamp; FP 0 is no mode', () => {
+test('his answers, read: 4294967295 is no index; TORE16 is the last clamp; FP 0 is no mode', () => {
   assert.equal(indexNumber(4294967295), undefined);
   assert.equal(indexNumber('4294967295'), undefined);
   assert.equal(indexNumber(4294967294), 4294967294, 'only that one value');
@@ -124,9 +128,11 @@ test('his answers, read: 4294967295 is no index; TORE20 is a clamp; FP 0 is no m
     assert.equal(meterOf(`ti${n}`, INDEX_ALL[indexKey(`ti${n}`)]).value, undefined);
   }
   assert.equal(meterOf('ti1', INDEX_ALL.Index_TI1).value, 132533.718, 'Wh read, kWh published');
-  assert.equal(kindOf('tore20'), 'meter');
-  assert.equal(kindOf('tore21'), undefined);
-  assert.equal(indexKey('tore20'), 'Index_TORE20');
+  assert.equal(kindOf('tore16'), 'meter');
+  for (const code of ['tore17', 'tore18', 'tore20', 'tore21']) {
+    assert.equal(kindOf(code), undefined, `${code}: the X400 CT left over, not a clamp`);
+  }
+  assert.equal(indexKey('tore16'), 'Index_TORE16');
   assert.deepEqual(UNIT_CONFIRMED, { ti: true, tore: false });
   for (let n = 1; n <= 8; n += 1) {
     assert.equal(zoneIsNumber(GET_FP, n), true);
@@ -145,8 +151,8 @@ test('his RT2: 10 relays, 12 inputs, TI1 offered and published in kWh, TI2 to TI
   assert.ok(ids.includes('ext:rt2:meter:ti1'), ids.join(' '));
   for (const n of [2, 4, 5, 6, 7]) assert.ok(!ids.includes(`ext:rt2:meter:ti${n}`), `TI${n}`);
   assert.ok(!ids.some((id) => /meter:tore/.test(id)), 'clamps: unit not confirmed');
-  // TORE1, 2, 3, 17, 18, 20: read, counted, not offered.
-  assert.match(message(gladys), /6 clamp index\(es\) read but not offered/);
+  // TORE1, 2, 3: read, counted, not offered; TORE17, 18, 20 (X400 CT left over): not even read.
+  assert.match(message(gladys), /\. 3 clamp index\(es\) read but not offered/);
   assert.equal(gladys.fake.lastState(TI(1)), 132533.718);
   assert.deepEqual(states(TI(3)), [], 'an absent entry is never published');
   assert.doesNotMatch(message(gladys), /held back/);
@@ -177,8 +183,25 @@ test('his RT2: an entry turning absent (4294967295) is never a jump, Gladys keep
   app.stop();
 });
 
+test('his RT2: after an absent entry the reference stays, a jump of +67 MWh is held', async () => {
+  const world = hisRt2();
+  const devices = [meter('ti1')];
+  const { app, gladys, start, wait, store } = await setup({ world, devices });
+  await start();
+  world.fixtures.set('all', { ...INDEX_ALL, Index_TI1: 4294967295 });
+  await wait(15 * SECOND);
+  await wait(15 * SECOND);
+  // The reference did not move: a jump of +67 MWh right after the absent entries is held.
+  world.fixtures.set('all', { ...INDEX_ALL, Index_TI1: 200_000_000 });
+  await wait(15 * SECOND);
+  assert.equal(gladys.fake.lastState(TI(1)), 132533.718, 'the jump is not published');
+  assert.equal(store.data.meters.ti1.held?.to, 200000);
+  assert.match(message(gladys), /held back/);
+  app.stop();
+});
+
 test('his X-4FP answer (numbers): no mode published, said; Eco and Comfort refused unsent, Off still goes', async () => {
-  const devices = [created('pilot-wire', 'fp1'), created('pilot-wire', 'fp5')];
+  const devices = ['fp1', 'fp5', 'fp6'].map((code) => created('pilot-wire', code));
   const world = hisRt2();
   const { app, gladys, start, cmd, wait, states } = await setup({
     world,
@@ -189,18 +212,28 @@ test('his X-4FP answer (numbers): no mode published, said; Eco and Comfort refus
   await wait(15 * SECOND);
   assert.deepEqual(states(F('pilot-wire', 'fp1', 'mode')), []);
   assert.deepEqual(states(F('pilot-wire', 'fp5', 'mode')), []);
-  assert.match(message(gladys), /answering a number instead of a mode .*FP1/);
-  assert.match(message(gladys, 'fr'), /répondent un nombre au lieu d’un mode/);
+  assert.match(message(gladys), /answering a number or nothing instead of a mode .*FP1/);
+  assert.match(message(gladys, 'fr'), /répondent un nombre ou rien au lieu d’un mode/);
   for (const mode of [PILOT.COMFORT, PILOT.ECO, PILOT.COMFORT_1, PILOT.COMFORT_2]) {
     const refused = await cmd(devices[0], F('pilot-wire', 'fp1', 'mode'), mode);
     assert.equal(refused.success, false);
-    assert.match(refused.error, /répond un nombre au lieu d’un mode/);
+    assert.match(refused.error, /répond un nombre ou rien au lieu d’un mode/);
   }
   assert.equal(world.writes().length, 0, 'nothing sent');
   const off = await cmd(devices[1], F('pilot-wire', 'fp5', 'mode'), PILOT.OFF);
   assert.match(world.writes().at(-1).path, /SetFP05=3$/, 'a protective Off is never refused');
   assert.equal(off.success, false, 'not confirmed: the zone reads a number');
+  const frost = await cmd(devices[2], F('pilot-wire', 'fp6', 'mode'), PILOT.FROST_PROTECTION);
+  assert.match(world.writes().at(-1).path, /SetFP06=2$/, 'nor a protective Frost protection');
+  assert.equal(frost.success, false, 'not confirmed: the zone reads a number');
+  assert.equal(world.writes().length, 2);
   assert.deepEqual(states(F('pilot-wire', 'fp5', 'mode')), []);
+  // Said as what it is, never "sent again" (no read can confirm it).
+  await wait(15 * SECOND);
+  assert.match(message(gladys), /Off \/ Frost protection sent, cannot be confirmed .*: FP5, FP6/);
+  assert.match(message(gladys, 'fr'), /impossible à confirmer \(la zone ne répond aucun mode\)/);
+  assert.doesNotMatch(message(gladys), /sent again|check on site/);
+  assert.equal(world.writes().length, 2, 'not sent again by the reads');
   app.stop();
 });
 
@@ -247,5 +280,142 @@ test('a read back showing a mode text clears the number at once: Comfort goes be
       .some((r) => /Get=D/.test(r.path)),
     'no round in between',
   );
+  app.stop();
+});
+
+// Review cce66 r1, M1: a zone answering no mode is known from the answer itself (a read back,
+// a round still in progress) and kept in /data, so Eco and Comfort never reach it meanwhile.
+
+const FP1 = F('pilot-wire', 'fp1', 'mode');
+const ZONES = { ...CONFIG, extensions: 'FP1', allow_heating_modes: true };
+
+test('M1: a read back answering a number refuses Comfort at once (the text read before is not kept)', async () => {
+  const devices = [created('pilot-wire', 'fp1')];
+  const world = fakeRt2();
+  const { app, gladys, start, cmd } = await setup({ world, devices, config: ZONES });
+  await start();
+  assert.equal(gladys.fake.lastState(FP1), PILOT.OFF, 'a mode text read first');
+  world.ignoreWrites = true;
+  world.FP[1] = 0;
+  const reads = world.reads().length;
+  const eco = await cmd(devices[0], FP1, PILOT.ECO);
+  assert.equal(eco.success, false, 'the read back shows no mode');
+  assert.equal(world.writes().length, 1);
+  const comfort = await cmd(devices[0], FP1, PILOT.COMFORT);
+  assert.equal(comfort.success, false);
+  assert.match(comfort.error, /répond un nombre ou rien au lieu d’un mode/);
+  assert.equal(world.writes().length, 1, 'nothing sent');
+  assert.ok(
+    !world
+      .reads()
+      .slice(reads)
+      .some((r) => /Get=D/.test(r.path)),
+    'no round in between',
+  );
+  // The Off read before is gone with it: an Off now is never confirmed by that old text.
+  const off = await cmd(devices[0], FP1, PILOT.OFF);
+  assert.equal(off.success, false, 'not confirmed: the zone reads a number');
+  assert.equal(app.guards.get('fp1')?.confirmed, false);
+  app.stop();
+});
+
+test('M1: a round whose Get=FP answered a number refuses Comfort before the round ends', async () => {
+  const devices = [created('pilot-wire', 'fp1')];
+  const world = fakeRt2();
+  const { app, start, cmd, wait } = await setup({ world, devices, config: ZONES });
+  await start();
+  world.FP[1] = 0;
+  world.latency = (r) => (/Index=all/.test(r.path) ? 5 * SECOND : 20);
+  await wait(15 * SECOND - 1000);
+  for (
+    let i = 0;
+    i < 100 && !(world.inFlight === 1 && /Index=all/.test(world.requests.at(-1).path));
+    i += 1
+  ) {
+    await wait(50);
+  }
+  assert.match(world.requests.at(-1).path, /Index=all/, 'the round is still reading the indexes');
+  assert.equal(world.inFlight, 1);
+  const comfort = await cmd(devices[0], FP1, PILOT.COMFORT);
+  assert.equal(comfort.success, false);
+  assert.match(comfort.error, /répond un nombre ou rien/);
+  assert.equal(world.writes().length, 0, 'nothing sent');
+  app.stop();
+});
+
+test('M1: kept in /data: after a restart Comfort is refused before the first round answers', async () => {
+  const devices = [created('pilot-wire', 'fp1')];
+  const world = hisRt2();
+  const first = await setup({ world, devices, config: ZONES });
+  await first.start();
+  assert.deepEqual(first.store.data.unknownZones, ['fp1']);
+  first.app.stop();
+  // A slow first round: no answer of it yet when the click comes.
+  world.latency = 5 * SECOND;
+  const second = await setup({
+    world,
+    devices,
+    config: ZONES,
+    store: first.store,
+    clock: first.clock,
+  });
+  const before = world.requests.length;
+  await second.app.connected(ZONES);
+  await second.wait(100);
+  const comfort = await second.cmd(devices[0], FP1, PILOT.COMFORT);
+  assert.equal(comfort.success, false);
+  assert.match(comfort.error, /répond un nombre ou rien/);
+  assert.equal(world.writes().length, 0, 'nothing sent');
+  assert.ok(
+    !world.requests.slice(before).some((r) => /Get=FP/.test(r.path) && r.end !== undefined),
+    'no Get=FP answered since the restart',
+  );
+  // Another Eco-Devices (another address): not its zones.
+  const other = { ...ZONES, host: '192.168.1.61' };
+  const raw = normalizeMemory(first.store.data, Date.now());
+  assert.deepEqual(raw.unknownZones, ['fp1']);
+  second.app.stop();
+  const third = await setup({
+    world: hisRt2(),
+    devices,
+    config: other,
+    store: first.store,
+    clock: first.clock,
+  });
+  await third.app.connected(other);
+  assert.deepEqual(
+    third.app.unknownZones.size,
+    0,
+    'the zones of another controller are not this one',
+  );
+  third.app.stop();
+});
+
+test('M1: a Comfort clicked while the read back of an Eco is in flight is refused when it leaves', async () => {
+  const devices = [created('pilot-wire', 'fp1')];
+  const world = fakeRt2();
+  const { app, gladys, start, act, wait } = await setup({ world, devices, config: ZONES });
+  await start();
+  world.ignoreWrites = true;
+  world.FP[1] = 0;
+  world.latency = 300;
+  const feature = devices[0].features.find((f) => f.external_id === FP1);
+  const eco = gladys.fake.setValue(devices[0], feature, PILOT.ECO);
+  for (
+    let i = 0;
+    i < 100 && !(world.inFlight === 1 && /Get=FP/.test(world.requests.at(-1).path));
+    i += 1
+  ) {
+    await wait(10);
+  }
+  assert.match(world.requests.at(-1).path, /Get=FP/, 'the read back of Eco is in flight');
+  assert.equal(world.writes().length, 1);
+  // Taken (the zone read a mode text last), it waits behind the read back.
+  const comfort = gladys.fake.setValue(devices[0], feature, PILOT.COMFORT);
+  const [first, second] = await act(Promise.all([eco, comfort]));
+  assert.equal(first.success, false, 'Eco sent, its read back shows no mode');
+  assert.equal(second.success, false);
+  assert.match(second.error, /répond un nombre ou rien/);
+  assert.equal(world.writes().length, 1, 'Comfort never left');
   app.stop();
 });

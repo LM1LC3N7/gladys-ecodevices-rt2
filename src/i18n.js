@@ -267,13 +267,18 @@ export const T = {
     ),
   zonesNumeric: (list) =>
     both(
-      `Pilot-wire zone(s) answering a number instead of a mode (no X-4FP there?): ${list.en}. Not published; Eco and Comfort refused there, Off and Frost protection still sent.`,
-      `Zone(s) de fil pilote qui répondent un nombre au lieu d’un mode (pas de X-4FP ?) : ${list.fr}. Non publiée(s) ; Éco et Confort y sont refusés, Arrêt et Hors-gel restent envoyés.`,
+      `Pilot-wire zone(s) answering a number or nothing instead of a mode (no X-4FP there?): ${list.en}. Not published; Eco and Comfort refused there until a mode is read, Off and Frost protection still sent.`,
+      `Zone(s) de fil pilote qui répondent un nombre ou rien au lieu d’un mode (pas de X-4FP ?) : ${list.fr}. Non publiée(s) ; Éco et Confort y sont refusés tant qu’aucun mode n’est lu, Arrêt et Hors-gel restent envoyés.`,
     ),
   guardsPending: (list) =>
     both(
       `Off / Frost protection not applied yet, sent again: ${list.en}.`,
       `Arrêt / Hors-gel pas encore appliqué, renvoyé : ${list.fr}.`,
+    ),
+  guardsUnconfirmable: (list) =>
+    both(
+      `Off / Frost protection sent, cannot be confirmed (the zone answers no mode): ${list.en}.`,
+      `Arrêt / Hors-gel envoyé, impossible à confirmer (la zone ne répond aucun mode) : ${list.fr}.`,
     ),
   guardsFailed: (list) =>
     both(
@@ -417,8 +422,8 @@ export const ERRORS = {
     'Cette fonctionnalité est en lecture seule : rien n’a été envoyé.',
   ),
   zoneNumeric: both(
-    'This zone answers a number instead of a mode (no X-4FP there?): Eco and Comfort are refused, nothing was sent.',
-    'Cette zone répond un nombre au lieu d’un mode (pas de X-4FP ?) : Éco et Confort sont refusés, rien n’a été envoyé.',
+    'This zone answers a number or nothing instead of a mode (no X-4FP there?): Eco and Comfort are refused until a mode is read, nothing was sent.',
+    'Cette zone répond un nombre ou rien au lieu d’un mode (pas de X-4FP ?) : Éco et Confort sont refusés tant qu’aucun mode n’est lu, rien n’a été envoyé.',
   ),
   heatingDisabled: both(
     'Heating modes (Comfort, Eco) are off in the configuration: nothing was sent. Off and Frost protection need no option.',

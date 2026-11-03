@@ -33,6 +33,8 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     name: Lint & test (Node ${{ matrix.node-version }})
+    # A test that never ends is cut by --test-timeout; this bounds the whole job too.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

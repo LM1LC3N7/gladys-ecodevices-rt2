@@ -193,6 +193,9 @@ export const emptyMemory = () => ({
   guards: [],
   meters: {},
   foreign: null,
+  // The pilot-wire zones whose last `Get=FP` answer was no mode (a number on cce66's RT2):
+  // Eco and Comfort stay refused there across a restart, until a mode text is read.
+  unknownZones: [],
 });
 
 /**
@@ -261,6 +264,11 @@ export function normalizeMemory(raw, now = Date.now()) {
         memory.guards.push(guard);
       }
     }
+  }
+  if (Array.isArray(raw?.unknownZones)) {
+    memory.unknownZones = [
+      ...new Set(raw.unknownZones.filter((c) => typeof c === 'string' && /^fp[1-8]$/.test(c))),
+    ];
   }
   return memory;
 }

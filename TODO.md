@@ -24,9 +24,14 @@ to date at the end of every milestone.
       the same Linky (copy in `_lots/hors-lot/cce66-n7/releves.md`, tests in
       `test/cce66.test.js`). Fixed from them (2026-11-01): see "Decisions
       after the first real answers".
+- [x] **Second real answers** (cce66, t/11448 #9, 2026-11-02; copy in
+      `_lots/hors-lot/cce66-n9/releves.md`): firmware 3.00.04; clamps 1-16
+      real, TORE17+ an X400 CT left over; no X-4FP, X-THL nor inputs wired
+      yet. Applied in 0.1.3 (see "Decisions after the second real answers").
 - [ ] **First real run** (cce66): the integration itself on his RT2; until
       then the docs and the manifest say "never tested with a real device".
-- [ ] **Milestone 2**: instant power of the posts (`Get=P`), posts and
+- [ ] **Milestone 2**: instant power of the posts (`Get=P`; none per clamp
+      in `xdevices.json`, see the decisions of 2026-11-03), posts and
       sub-posts (`Index=P|S`), teleinformation details (`Get=TI`: current
       tariff, apparent power), virtual outputs (`Get=VO`), EnOcean (`Get=XENO`:
       actuators behind the same rules as the relays), prices.
@@ -44,23 +49,28 @@ Answered on 2026-10-31 (t/11448 #7):
       in Wh (see the Decisions below); clamps not settled.
 - [x] `Get=FP`: keys `FP1 Zone 1`..`FP2 Zone 4`, values the **number** 0,
       not a text.
-- [x] Firmware: not given for the RT2 (his ED3 is 1.3.0, his IPX800 V5
+- [x] Firmware: 3.00.04 (2026-11-02; his ED3 is 1.3.0, his IPX800 V5
       5.7.2).
+
+Answered on 2026-11-02 (t/11448 #9): `Index_TORE<n>` is the energy counted
+on clamp n, the page shows only the instant power (no unit to compare);
+clamps 17-20+ are an X400 CT left over (frozen); no X-4FP yet (he will wire
+one); `Get=D` / `Get=XTHL`: nothing wired yet; firmware 3.00.04.
 
 Still open, to ask on the forum (short, in French):
 
-1. Pinces : sur la page de l'Eco-Devices, que vaut la pince 1 (en kWh ou en
-   Wh) au moment où l'API donne `Index_TORE1` ? Et que sont les pinces 17 à
-   20 (d'autres pinces, ou la production des pinces 1 à 4) ?
-2. Fil pilote : as-tu un X-4FP branché ? Si oui, que montre sa page pour la
-   zone 1 quand l'API répond 0 ? Change un mode depuis la page, puis
-   renvoie `Get=FP` : le nombre change-t-il ?
-3. `Get=D` : la réponse complète (clés `D1` à `D12`, des nombres 0/1 ?).
-4. `Get=XTHL` si tu as un X-THL : la réponse complète.
-5. Une mauvaise clé d'API : que répond `Get=R` (401, ou une page, ou
+1. Pinces (unité de l'index) : deux relevés de `Index=all` à une heure
+   d'écart (heure notée), et pendant cette heure la puissance moyenne de la
+   pince 1 sur la page (ou un appareil de puissance connue et stable seul sur
+   cette pince : un radiateur de 1500 W, par exemple). Écart d'index ≈ 1500
+   par heure : Wh ; ≈ 1,5 : kWh ; ≈ 1 500 000 : mWh.
+2. Fil pilote, quand le X-4FP sera câblé : `Get=FP` complet ; que montre la
+   page pour la zone 1 ; change un mode depuis la page, puis renvoie
+   `Get=FP` : texte ou nombre ?
+3. `Get=D` et `Get=XTHL` quand ils seront câblés : la réponse complète.
+4. Une mauvaise clé d'API : que répond `Get=R` (401, ou une page, ou
    `"status": "Error"`) ?
-6. La version du firmware du RT2 (page d'accueil ou `status.xml`).
-7. Avec l'intégration lancée : tout va bien à 15 s (cinq requêtes par
+5. Avec l'intégration lancée : tout va bien à 15 s (cinq requêtes par
    lecture), la page de l'Eco-Devices reste fluide ?
 
 ## Decisions
@@ -240,7 +250,43 @@ Still open, to ask on the forum (short, in French):
 - **Envelope**: `product` and `status` were in all three answers: kept as
   they are.
 
-## Next patch (review cce66 r1, 8c6259d) — M1 first
+## Decisions after the second real answers (2026-11-03, 0.1.3)
+
+- **Clamps 1-16 only** (`LIMITS_RT2.tore` 16, the GCE PDF's "16 tores"):
+  `Index_TORE17` and beyond are an X400 CT extension once wired on cce66's
+  RT2 (frozen values), never clamps of the RT2: not read, not counted, never
+  offered (no advanced option either: nothing to gain, a frozen index at
+  best).
+- **Clamp unit still not confirmed** (`UNIT_CONFIRMED.tore` false): no
+  source gives it. GCE PDF: `Index=T` "index des 16 tores", no unit;
+  `indexcourant5XX` in `status.json` (behind the password), no unit.
+  pyecodevices_rt2 and the HA integration: a sensor with the unit the user
+  types. The page of the RT2 shows only the instant power of a clamp. So
+  they stay neither offered nor published (question 1). No instant power
+  **per clamp** in `xdevices.json`: `Get=P` / `Get=S` give the instant
+  values of the posts and sub-posts (built from clamps by the user), and
+  `status.json` the same (`instant`, `sspencoursXX`, behind the password).
+- **Firmware 3.00.04**: the RT2 whose reads were tested (docs, README).
+- **M1 of the review cce66 r1**: `unknownZones` (`src/app.js`), the zones
+  whose last `Get=FP` answer held no mode text (a number, nothing, a text
+  not known), set from the answer itself (`noteZones`: the round's `Get=FP`
+  as soon as it is answered, a read back of a command), cleared by a mode
+  text, kept in `/data` (`unknownZones`, for this controller only: another
+  address starts empty). Eco and Comfort refused there in `setValue` and in
+  `checkBeforeSend`. Remaining window, in the docs: before the very first
+  answer for a zone (just listed). The stricter "refuse until a mode text
+  is seen" was not taken (it changes 0.1.1 for every user: Louis's call).
+  The mutant removing the check of `setValue` survives: `checkBeforeSend`
+  refuses the same command (defence in depth). A zone answering no mode
+  keeps its old text in the model, but no decision reads it (`applyRead`
+  takes only the targets read at `at`).
+- **M3**: a guard of such a zone is listed "sent, cannot be confirmed"
+  (`guardsUnconfirmable`), never "sent again" nor "check on site"; it is
+  still sent again at the next 3 restarts (kept: protective, harmless).
+- **M2, M4, M5, M6**: tests (jump after the sentinel held; Frost protection
+  on a numeric zone), docs intro, `timeout-minutes: 15` in CI.
+
+## Next patch (review cce66 r1, 8c6259d) — done in 0.1.3
 
 - M1: Eco / Comfort can still reach a zone that just answered a number: `numeric` only comes from a finished round (`src/app.js:1086`, `:1196`); `storeReadBack` (`:2143-2145`) ignores a numeric read-back and keeps the old text; a round in progress has already seen 0; at start or after a saved config, until the first full round (`:557`, up to one interval, 15-300 s). Keep a set of "numeric" zones updated on every `Get=FP` answer, read-backs included; keep it in `/data` at start or say the window in the docs; tests for the three cases, one killing the mutant of `checkBeforeSend` (`:2262`). Until then the docs' "Eco and Comfort refused there" is too broad.
 - M2: `test/cce66.test.js:156-178`: after the sentinel, come back with a +67 MWh jump and assert it is held (the mutant "sentinel clears the reference" survives).

@@ -1,16 +1,18 @@
 # Eco-Devices RT2 pour Gladys
 
 Amène dans Gladys **jusqu’à trois Eco-Devices RT2 de GCE Electronics** par
-leur API JSON locale : les index de la téléinformation, des pinces
-ampèremétriques et des compteurs d’impulsions (eau, gaz, électricité), leurs
+leur API JSON locale : les index de la téléinformation et des compteurs
+d’impulsions (eau, gaz, électricité ; pinces ampèremétriques une fois leur
+unité confirmée), leurs
 relais, leurs entrées, les zones de fil pilote de leurs extensions X-4FP et
 leurs capteurs X-THL (température, humidité, luminosité).
 
 > Jamais testé avec un vrai appareil : écrit d’après la documentation de
 > l’API de GCE Electronics (« API Eco Devices RT », 2017), la bibliothèque
 > libre de l’intégration Home Assistant (pyecodevices_rt2), les outils de
-> test de cce66 et les réponses de son RT2 à ses lectures (octobre 2026).
-> Dites-nous ce que vous voyez sur le vôtre. Sans lien avec
+> test de cce66 et les réponses de son RT2 à ses lectures (octobre-novembre
+> 2026, firmware 3.00.04). Les commandes (relais, fil pilote) n’ont jamais
+> été essayées sur un vrai RT2. Dites-nous ce que vous voyez sur le vôtre. Sans lien avec
 > GCE Electronics.
 
 ## Installation
@@ -76,7 +78,7 @@ valeur.
 | Sur l’Eco-Devices RT2                   | Dans Gladys                                                        | Code (dans le nom) |
 | --------------------------------------- | ------------------------------------------------------------------ | ------------------ |
 | Index de téléinformation 1 à 7          | index d’énergie (kWh)                                              | `TI1`              |
-| Pince ampèremétrique 1 à 20             | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
+| Pince ampèremétrique 1 à 16             | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
 | Compteur d’impulsions 1 à 12 (si listé) | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
 | Relais 1 à 10 (2 + un X-8R)             | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
 | Entrée 1 à 12                           | une entrée binaire (lecture seule)                                 | `D3`               |
@@ -93,10 +95,18 @@ les index, une requête après l’autre. Une valeur que l’Eco-Devices ne donn
 pas (absente, un texte, hors plage) n’est pas publiée : jamais comme 0. Un
 index lu à 4294967295 est une entrée sans rien derrière (une entrée de
 téléinformation sans compteur) : jamais proposé ni publié, jamais un saut.
-Une zone de X-4FP qui répond un nombre au lieu d’un mode (0 sur un vrai RT2 :
-pas de X-4FP à cet endroit, ou un firmware que nous ne connaissons pas
-encore) n’est pas publiée ; l’état la cite, Éco et Confort y sont refusés,
-Arrêt et Hors-gel restent envoyés. Si
+Une zone de X-4FP qui répond un nombre ou rien au lieu d’un mode (0 sur un
+vrai RT2 : pas de X-4FP à cet endroit, ou un firmware que nous ne
+connaissons pas encore) n’est pas publiée ; l’état la cite, Éco et Confort y
+sont refusés dès cette réponse (relecture après une commande et lecture en
+cours comprises ; retenu après un redémarrage) jusqu’à ce qu’un mode soit
+lu, Arrêt et Hors-gel restent envoyés. Avant la toute première réponse pour
+une zone (une zone qui vient d’être listée), rien n’est encore connu : Éco
+et Confort partent s’ils sont autorisés. Un Arrêt ou un Hors-gel envoyé à
+une telle zone ne peut pas être confirmé par une lecture : l’état dit
+« envoyé, impossible à confirmer », et il est renvoyé à chacun des trois
+redémarrages suivants (sens protecteur, sans effet sur une zone sans X-4FP).
+Si
 les relais ne peuvent pas être lus, la lecture entière est en échec ; si un
 autre groupe échoue, ses valeurs ne sont pas publiées cette fois et l’état
 le dit.
@@ -134,11 +144,16 @@ par une garde.
 **Unités.** Les index de téléinformation sont lus en Wh et publiés en kWh :
 confirmé sur un vrai RT2, dont le TI1 valait, à 143 Wh près, l’index qu’un
 Eco-Devices 3 (en Wh) lisait sur le même compteur. Sa propre page peut
-afficher des kWh : même valeur, divisée par 1000. L’unité des index de pince
-(Wh ou kWh) n’est pas encore confirmée ; une erreur d’un facteur 1000,
-corrigée plus tard, serait un saut compté une fois comme consommation : les
-pinces ne sont donc **ni proposées ni publiées** tant qu’elle ne l’est pas ;
-l’état dit combien ont été lues. Un compteur d’impulsions est lu dans l’unité que vous
+afficher des kWh : même valeur, divisée par 1000. Un index de pince
+(`Index_TORE<n>`) est l’énergie comptée sur cette pince, mais son unité (Wh
+ou kWh) n’est donnée par aucune source et ne se compare pas à la page de
+l’Eco-Devices (qui n’affiche que la puissance instantanée d’une pince) ; une
+erreur d’un facteur 1000, corrigée plus tard, serait un saut compté une fois
+comme consommation : les pinces ne sont donc **ni proposées ni publiées**
+tant qu’elle ne l’est pas ; l’état dit combien ont été lues. Seules les
+pinces 1 à 16 sont lues : un vrai RT2 répond aussi `Index_TORE17` et au-delà,
+reliquat d’une extension X400 CT autrefois câblée (valeurs figées), jamais
+proposé. Un compteur d’impulsions est lu dans l’unité que vous
 indiquez : comparez la première valeur publiée au compteur. Un compteur dont
 vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la
 première valeur lue. Si vous changez son **unité** après la publication de

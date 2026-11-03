@@ -127,9 +127,11 @@ export const POLL_INTERVAL = { min: 5, max: 300, default: 15 };
 /**
  * Sizes of the Eco-Devices RT2 (the API answers them all, wired or not):
  * relays 2 + 8 (X-8R), inputs 12, pilot-wire zones 8 (two X-4FP: `SetFP01`
- * to `SetFP08`), 2 X-THL, 7 teleinformation indexes, 20 clamps (16 in the GCE
- * PDF of 2017, `Index_TORE17` to `Index_TORE20` in the answer of a real RT2),
- * 12 counters.
+ * to `SetFP08`), 2 X-THL, 7 teleinformation indexes, 16 clamps, 12 counters.
+ * Clamps: 16 in the GCE PDF of 2017 (`Index=T`, "les 16 tores"); a real RT2
+ * also answers `Index_TORE17` to `Index_TORE20` and beyond, but there they are
+ * what is left of an X400 CT extension once wired (cce66, 2026-11-02: frozen
+ * values), never clamps of the RT2: not read at all.
  */
 export const LIMITS_RT2 = {
   relays: 10,
@@ -138,7 +140,7 @@ export const LIMITS_RT2 = {
   zones: 8,
   thl: 2,
   ti: 7,
-  tore: 20,
+  tore: 16,
   counters: 12,
 };
 
@@ -154,9 +156,11 @@ export const RANGES = {
  * Teleinformation: Wh. `Index_TI1` read 132,533,718 on his RT2 and the
  * teleinformation index of his Eco-Devices 3 on the same Linky 132,533,861
  * (Wh, the unit of the ED3) minutes apart: the same meter, 143 Wh apart; in
- * kWh it would be 132 GWh, not a home. Clamps: not confirmed (the unit of
- * their index is not compared with the page of the Eco-Devices yet): neither
- * offered nor published.
+ * kWh it would be 132 GWh, not a home. Clamps: not confirmed. `Index_TORE<n>`
+ * is the energy counted on clamp n (cce66), but no source gives its unit (the
+ * GCE PDF, pyecodevices_rt2 and the Home Assistant integration give none) and
+ * the page of the Eco-Devices only shows the instant power of a clamp, so the
+ * index cannot be compared with it: neither offered nor published.
  */
 export const UNIT_CONFIRMED = { ti: true, tore: false };
 

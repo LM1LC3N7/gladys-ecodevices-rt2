@@ -1,16 +1,18 @@
 # Eco-Devices RT2 for Gladys
 
 Brings **up to three GCE Electronics Eco-Devices RT2** into Gladys through
-their local JSON API: the indexes of the teleinformation, of the current
-clamps and of the pulse counters (water, gas, electricity), their relays,
+their local JSON API: the indexes of the teleinformation and of the pulse
+counters (water, gas, electricity; current clamps once their unit is
+confirmed), their relays,
 their inputs, the pilot-wire zones of their X-4FP extensions and their X-THL
 sensors (temperature, humidity, luminosity).
 
 > Never tested with a real device: written from the API documentation of GCE
 > Electronics ("API Eco Devices RT", 2017), the open library of the Home
 > Assistant integration (pyecodevices_rt2), cce66's test tools and the
-> answers of his RT2 to its reads (October 2026). Tell us what you see on
-> yours. Not affiliated with GCE Electronics.
+> answers of his RT2 to its reads (October-November 2026, firmware
+> 3.00.04). The commands (relays, pilot wire) were never tried on a real
+> RT2. Tell us what you see on yours. Not affiliated with GCE Electronics.
 
 ## Installation
 
@@ -70,7 +72,7 @@ value.
 | On the Eco-Devices RT2                | In Gladys                                                        | Code (in the name) |
 | ------------------------------------- | ---------------------------------------------------------------- | ------------------ |
 | Teleinformation index 1 to 7          | energy index (kWh)                                               | `TI1`              |
-| Current clamp 1 to 20                 | not yet (see "Units" below)                                      | `TORE3`            |
+| Current clamp 1 to 16                 | not yet (see "Units" below)                                      | `TORE3`            |
 | Pulse counter 1 to 12 (when listed)   | water or gas index (m³), or energy index (kWh)                   | `C1`               |
 | Relay 1 to 10 (2 + an X-8R)           | read only, or a switch / light when you list it                  | `R3`               |
 | Input 1 to 12                         | a binary input (read only)                                       | `D3`               |
@@ -87,10 +89,16 @@ the indexes, one request after the other. A value the Eco-Devices does not
 give (absent, a text, out of range) is not published: never as 0. An index
 read 4294967295 is an entry with nothing behind it (a teleinformation input
 without a meter): never offered nor published, never a jump. A zone of an
-X-4FP that answers a number instead of a mode (0 on a real RT2: no X-4FP
-there, or a firmware we do not know yet) is not published; the status lists
-it, Eco and Comfort are refused there, Off and Frost protection are still
-sent. When the
+X-4FP that answers a number or nothing instead of a mode (0 on a real RT2:
+no X-4FP there, or a firmware we do not know yet) is not published; the
+status lists it, Eco and Comfort are refused there from that answer on
+(a read back after a command, or a read still in progress, included; kept
+across a restart) until a mode is read, Off and Frost protection are still
+sent. Before the very first answer for a zone (a zone just listed), nothing
+is known of it yet: Eco and Comfort go when allowed. An Off or a Frost
+protection sent to such a zone cannot be confirmed by a read: the status
+says "sent, cannot be confirmed", and it is sent again at each of the next
+three restarts (protective, harmless on a zone without an X-4FP). When the
 relays cannot be read, the whole read fails; when another group fails, its
 values are not published this time and the status says so.
 
@@ -123,10 +131,14 @@ a guard.
 **Units.** The teleinformation indexes are read in Wh and published in kWh:
 confirmed on a real RT2, whose TI1 matched, within 143 Wh, the index an
 Eco-Devices 3 (Wh) read on the same meter. Its own page may show kWh: same
-value, divided by 1000. The unit of the clamp indexes (Wh or kWh) is not
-confirmed yet; a factor of 1000 corrected later would be a jump counted once
-as consumption: the clamps are therefore **neither offered nor published**
-until it is; the status says how many were read. A pulse counter
+value, divided by 1000. A clamp index (`Index_TORE<n>`) is the energy
+counted on that clamp, but its unit (Wh or kWh) is given by no source and
+cannot be compared with the page of the Eco-Devices (which shows only the
+instant power of a clamp); a factor of 1000 corrected later would be a jump
+counted once as consumption: the clamps are therefore **neither offered nor
+published** until it is; the status says how many were read. Only clamps 1
+to 16 are read: a real RT2 also answers `Index_TORE17` and beyond, what is
+left of an X400 CT extension once wired (frozen values), never offered. A pulse counter
 is read in the unit you give: compare the first value published with the
 meter. A counter whose **type** you change gets a new feature, which starts
 from the first value read. If you change its **unit** after its index was

@@ -10,6 +10,23 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pilot wire: a zone answering a number (or nothing) instead of a mode refuses
+  Eco and Comfort from that answer on, a read back after a command or a read
+  still in progress included, and after a restart (kept in `/data`), until a
+  mode is read.
+- Pilot wire: an Off or a Frost protection sent to such a zone is said "sent,
+  cannot be confirmed" in the status, no longer "sent again".
+- Clamps: only clamps 1 to 16 are read; `Index_TORE17` and beyond (what is
+  left of an X400 CT extension on a real RT2) are no longer counted.
+
+### Changed
+
+- Docs: firmware 3.00.04 of a real RT2 noted; the intro no longer announces
+  the clamps; the unit of a clamp index explained.
+- CI: the test job is bounded (`timeout-minutes`).
+
 ## [0.1.2] - 2026-11-01
 
 ### Changed

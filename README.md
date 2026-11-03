@@ -17,7 +17,8 @@ pilot-wire zones of the X-4FP, X-THL sensors.
   commands; another GCE product at the address (an IPX800 V4 speaks the same
   API) is checked before every command and gets none.
 
-Never tested with a real device (its read answers come from a real RT2).
+Never tested with a real device: its read answers come from a real RT2
+(firmware 3.00.04); the commands were never tried on one.
 Not affiliated with GCE Electronics.
 
 User guide: [English](docs/en.md) · [Français](docs/fr.md).

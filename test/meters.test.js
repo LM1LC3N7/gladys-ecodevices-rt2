@@ -290,7 +290,8 @@ test('teleinformation published in kWh (Wh read); clamps neither offered nor pub
   assert.equal(gladys.fake.lastState(F('meter', 'ti1', 'energy-index')), 12345.678);
   assert.equal(gladys.fake.lastState(F('meter', 'tore1', 'energy-index')), undefined);
   assert.equal(gladys.fake.lastState(F('meter', 'tore17', 'energy-index')), undefined);
-  assert.match(message(gladys), /2 clamp index\(es\) read but not offered/);
+  // TORE17 is never read (the RT2 has 16 clamps; beyond, an X400 CT left over, cce66).
+  assert.match(message(gladys), /\. 1 clamp index\(es\) read but not offered/);
   assert.match(message(gladys, 'fr'), /leur unité \(Wh ou kWh\) n’est pas encore confirmée/);
   app.stop();
 });

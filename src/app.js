@@ -91,7 +91,6 @@ import {
   numberOf,
   valueOf,
   writeQuery,
-  zoneIsNumber,
 } from './rt2/model.js';
 import { StatePublisher } from './publisher.js';
 import { emptyMemory, fileStore, normalizeMemory } from './store.js';
@@ -209,6 +208,12 @@ export class Rt2App {
      * left without an answer when the guard came (it may still land after it).
      */
     this.guards = new Map();
+    /**
+     * The pilot-wire zones whose last `Get=FP` answer (round or read back) held no mode text
+     * (a number on cce66's RT2): Eco and Comfort refused there. Set as each answer arrives,
+     * kept in /data (a restart never opens a window), cleared by a mode text.
+     */
+    this.unknownZones = new Set();
     /** code -> the last write that left: { value, sentAt, answered } (memory only). */
     this.lastWrites = new Map();
     this.seq = 0;
@@ -534,8 +539,10 @@ export class Rt2App {
       saved.pause = null;
       saved.refused = null;
       saved.guards = [];
+      saved.unknownZones = [];
     }
     this.memory = saved;
+    for (const code of saved.unknownZones) this.unknownZones.add(code);
     if (saved.foreign && saved.foreign.key === this.config.key) {
       // Another GCE product answered at this address last time: nothing is sent before a round
       // reads an Eco-Devices RT2 there.
@@ -650,6 +657,7 @@ export class Rt2App {
     this.offline = false;
     this.lastReason = undefined;
     this.guards.clear();
+    this.unknownZones.clear();
     this.warnings.clear();
     this.pendingWrites.clear();
     this.published = undefined;
@@ -774,6 +782,24 @@ export class Rt2App {
       };
     }
     this.memory.meters = Object.fromEntries(Object.entries(meters).slice(0, LIMITS.meters));
+    this.memory.unknownZones = [...this.unknownZones];
+  }
+
+  /**
+   * What a `Get=FP` answer says of the zones `codes`: a mode text, or not (a number, nothing):
+   * then Eco and Comfort are refused there until a mode text is read. true when it changed.
+   */
+  noteZones(json, codes) {
+    let changed = false;
+    for (const code of codes) {
+      const known = valueOf(json, KINDS.PILOT, numberOf(code)) !== undefined;
+      if (known === this.unknownZones.has(code)) {
+        changed = true;
+        if (known) this.unknownZones.delete(code);
+        else this.unknownZones.add(code);
+      }
+    }
+    return changed;
   }
 
   /** true when /data was written. A failure is logged once until a save succeeds again. */
@@ -804,6 +830,7 @@ export class Rt2App {
             }
           }
           this.memory.refused ??= loaded.refused;
+          for (const code of loaded.unknownZones) this.unknownZones.add(code);
         }
         this.dropUnlistedGuards();
       } catch {
@@ -1081,10 +1108,15 @@ export class Rt2App {
       for (const code of codes) {
         if (kindOf(code) !== kind) continue;
         const n = numberOf(code);
-        const target = { code, kind, n, value: json ? valueOf(json, kind, n) : undefined, at };
-        // A zone answering a number (not a mode text): its value unknown, said in the status.
-        if (kind === KINDS.PILOT && json && zoneIsNumber(json, n)) target.numeric = true;
-        targets.set(code, target);
+        targets.set(code, { code, kind, n, value: json ? valueOf(json, kind, n) : undefined, at });
+      }
+      // The zones answering no mode text are known at once, not at the end of the round: a
+      // click on Eco or Comfort meanwhile is refused (a round of another configuration: never).
+      if (kind === KINDS.PILOT && json && client === this.client) {
+        this.noteZones(
+          json,
+          [...codes].filter((code) => kindOf(code) === kind),
+        );
       }
     };
     // The relays first: the identity of the answer (the product) and the round depend on them.
@@ -1301,7 +1333,14 @@ export class Rt2App {
     if (this.round?.unread.length > 0) {
       parts.push(T.groupsUnread(this.round.unread));
     }
-    const pending = [...this.guards.values()].filter((g) => !g.confirmed);
+    // A guard of a zone answering no mode cannot be confirmed by a read: said as such, never
+    // as "sent again" (it is sent again only at a restart, at most 3 times).
+    const unconfirmable = [...this.guards.values()].filter(
+      (g) => !g.confirmed && g.kind === KINDS.PILOT && this.unknownZones.has(g.code),
+    );
+    const pending = [...this.guards.values()].filter(
+      (g) => !g.confirmed && !unconfirmable.includes(g),
+    );
     const failing = pending
       .filter((g) => g.resends >= TIMINGS.resendMax)
       .map((g) => shownCode(g.code));
@@ -1310,6 +1349,9 @@ export class Rt2App {
       .map((g) => shownCode(g.code));
     if (resent.length > 0) parts.push(T.guardsPending(listOf(resent)));
     if (failing.length > 0) parts.push(T.guardsFailed(listOf(failing)));
+    if (unconfirmable.length > 0) {
+      parts.push(T.guardsUnconfirmable(listOf(unconfirmable.map((g) => shownCode(g.code)))));
+    }
     if (this.warnings.size > 0) {
       parts.push(T.notApplied(listOf([...this.warnings.keys()].map(shownCode))));
     }
@@ -1321,9 +1363,8 @@ export class Rt2App {
     if (this.unitChanged.size > 0) {
       parts.push(T.unitChanged(listOf([...this.unitChanged].map(shownCode))));
     }
-    const numeric = [...this.model.values()].filter((t) => t.kind === KINDS.PILOT && t.numeric);
-    if (numeric.length > 0)
-      parts.push(T.zonesNumeric(listOf(numeric.map((t) => shownCode(t.code)))));
+    const unknown = [...this.unknownZones].filter((code) => this.model.has(code)).sort();
+    if (unknown.length > 0) parts.push(T.zonesNumeric(listOf(unknown.map(shownCode))));
     if (this.unconfirmedIndexes > 0) parts.push(T.unitsUnconfirmed(this.unconfirmedIndexes));
     if (this.saveFailed || this.storeUnreadable) parts.push(T.storeProblem);
     return join(...parts);
@@ -2124,7 +2165,14 @@ export class Rt2App {
       for (const [code, target] of this.model) {
         if (target.kind === kind) values.set(code, valueOf(json, kind, target.n));
       }
-      if (generation === this.generation) this.storeReadBack(values, at, resend);
+      if (generation === this.generation) {
+        // A zone read back with no mode text: Eco and Comfort refused at once (and after a
+        // restart: /data written now, not at the next round).
+        if (kind === KINDS.PILOT && this.noteZones(json, [...values.keys()])) {
+          this.saveMemory().catch(() => {});
+        }
+        this.storeReadBack(values, at, resend);
+      }
       return { values, at };
     })();
     next.promise
@@ -2141,8 +2189,10 @@ export class Rt2App {
     for (const [code, value] of values) {
       const target = this.model.get(code);
       if (target && value !== undefined) {
-        this.model.set(code, { ...target, value, at, numeric: undefined });
+        this.model.set(code, { ...target, value, at });
       }
+      // No mode read back: the zone is in unknownZones (noteZones); the text read before stays
+      // in the model but no decision reads it (applyRead takes the targets read at `at` only).
     }
     this.applyRead(at, { resend });
   }
@@ -2198,8 +2248,8 @@ export class Rt2App {
     if (kind === KINDS.PILOT && !this.config.allowHeatingModes) {
       throw this.refusal(ERRORS.heatingDisabled);
     }
-    // A zone whose last read is a number (not a mode): what it stands for is not known.
-    if (target.numeric) throw this.refusal(ERRORS.zoneNumeric);
+    // A zone whose last answer is no mode (a number): what it stands for is not known.
+    if (this.unknownZones.has(target.code)) throw this.refusal(ERRORS.zoneNumeric);
     this.checkNotPaused(received);
     if (this.guards.get(target.code)?.userInFlight) throw this.refusal(ERRORS.stopPending);
     if (this.commands.length >= LIMITS.commandQueue) throw this.refusal(ERRORS.queueFull);
@@ -2259,7 +2309,9 @@ export class Rt2App {
     if (job.kind === KINDS.PILOT && !this.config.allowHeatingModes) {
       throw this.refusal(ERRORS.heatingDisabled);
     }
-    if (this.targetOf(job.code)?.numeric) throw this.refusal(ERRORS.zoneNumeric);
+    if (job.kind === KINDS.PILOT && this.unknownZones.has(job.code)) {
+      throw this.refusal(ERRORS.zoneNumeric);
+    }
     if (job.kind === KINDS.RELAY && !this.config.relays.has(job.code)) {
       throw this.refusal(ERRORS.readOnly);
     }
