@@ -327,3 +327,9 @@ Still open, to ask on the forum (short, in French):
 - [ ] m5 (kept open): revisit the 16-clamp limit once the clamp unit is confirmed (an X400 CT
       wired = clamps 17+ alive). No index is touched until then: clamps are neither offered nor
       published.
+
+## Next patch (review rt2-014-r1, minors)
+
+- [ ] Docs, CHANGELOG and TODO: a kept Off/Frost is resent on another mode read only while some of its 3 resends are left (restart resends count). After that the status says "check on site". Lifting it by choosing Eco/Comfort needs the heating-modes option.
+- [ ] Test pinning Louis's guard decision: Off clicked on a zone answering 0, the zone then answers "Confort", the next read sends `SetFP01=3`. Optionally a test pinning the documented window (a "strict variant" mutant survives).
+- [ ] Old wording: `TODO.md` "a frozen index at best", the comment at `src/app.js:2252` "(a number)", and `guardsUnconfirmable` in `src/i18n.js` "no mode" → "no known mode".
