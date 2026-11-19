@@ -327,11 +327,15 @@ y remet pas. Ils reviennent à la première lecture réussie.
   sous-postes, les index par période (HC/HP, Tempo), les prix, les sorties
   virtuelles et EnOcean ne sont pas dans cette version.
 - Détail de la téléinformation : celui de `Get=TI` (une entrée de
-  téléinformation), en mode historique seulement (`PAPP`, `IINST`, `PTEC`) ;
+  téléinformation), en mode historique monophasé seulement (`PAPP`, `IINST`,
+  `PTEC`) : en triphasé, l’intensité (`IINST1-3`) n’est pas publiée, et un
+  Linky en mode standard (`SINSTS`…) ne donne rien ; l’état le dit dans les
+  deux cas ;
   une période tarifaire inconnue n’est pas publiée, une valeur qui n’est pas
   un nombre non plus (jamais 0). Postes : seulement ceux listés (un poste
   sans pince lit 0 lui aussi, et 0 W est une vraie valeur pour un poste
-  listé) ; l’unité, W, est celle de l’intégration Home Assistant (GCE ne la
+  listé) ; l’unité, W, est celle de l’intégration Home Assistant, pas encore
+  confirmée sur un vrai RT2 (GCE ne la
   donne pas) : comparez avec la page du RT2.
 - Trois Eco-Devices au plus par intégration.
 - Reconnu par son adresse et son port (voir plus haut). Une même adresse dans

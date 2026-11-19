@@ -14,10 +14,12 @@
 // their guard (src/guard.js, from gladys-ecodevices).
 //
 // One round: `Get=R` (the relays: the round fails without it), then `Get=D`,
-// `Get=FP` (when zones are listed), `Get=XTHL` (when an X-THL is listed),
-// `Get=TI` (when `TIC` is listed), `Get=P` (when a post is listed) and
-// `Index=all`. A secondary group that fails leaves its targets known without
-// value (never 0), said in the status; it never stops the round.
+// `Index=all`, `Get=FP` (when zones are listed), `Get=XTHL` (when an X-THL is
+// listed), `Get=TI` (when `TIC` is listed) and `Get=P` (when a post is
+// listed): the groups every box has first, the optional ones last. A
+// secondary group that fails, or that the budget of the round leaves unsent,
+// leaves its targets known without value (never 0), said in the status; it
+// never stops the round (only a cut by a protective command does).
 //
 // The pace is kept across restarts: never two rounds less than an interval
 // apart, whatever asks (a reconnection, a save of the form, the test button,
@@ -90,6 +92,7 @@ import {
   kindOf,
   meterOf,
   numberOf,
+  teleinfoNote,
   valueOf,
   writeQuery,
 } from './rt2/model.js';
@@ -1134,6 +1137,11 @@ export class Rt2App {
     put(relays, KINDS.RELAY, at);
     const secondary = async (query, kind) => {
       let sentAt;
+      // No time left in the round: not sent, unread (what was read is still published).
+      if (this.monotonic() >= budget) {
+        unread.push(kind);
+        return { json: undefined, at };
+      }
       try {
         const json = await this.readGroup(
           client,
@@ -1143,11 +1151,9 @@ export class Rt2App {
         );
         return { json, at: sentAt };
       } catch (err) {
-        if (
-          !(err instanceof Rt2Error) ||
-          STOPPING.includes(err.code) ||
-          (err.code === 'late' && !err.sent)
-        ) {
+        // A group not sent by its deadline (the budget of the round, commands ahead) is
+        // unread like a failed one; a cut by a protective command still drops the round.
+        if (!(err instanceof Rt2Error) || STOPPING.includes(err.code)) {
           throw err;
         }
         // A secondary group failing never stops the round: its targets unread (never 0).
@@ -1157,6 +1163,10 @@ export class Rt2App {
     };
     const inputs = await secondary(READS.INPUTS, 'inputs');
     put(inputs.json, KINDS.INPUT, inputs.at);
+    const indexes = await secondary(READS.INDEXES, 'indexes');
+    for (const target of this.metersOf(indexes.json, indexes.at)) {
+      targets.set(target.code, target);
+    }
     if ([...codes].some((c) => kindOf(c) === KINDS.PILOT)) {
       const zones = await secondary(READS.PILOT, 'zones');
       put(zones.json, KINDS.PILOT, zones.at);
@@ -1168,14 +1178,14 @@ export class Rt2App {
     if ([...codes].some((c) => kindOf(c) === KINDS.TELEINFO)) {
       const tic = await secondary(READS.TELEINFO, 'teleinfo');
       put(tic.json, KINDS.TELEINFO, tic.at);
+      // What the answer holds that is not read (three-phase, standard mode): said in the status.
+      if (tic.json && client === this.client) this.teleinfoNote = teleinfoNote(tic.json);
+    } else if (client === this.client) {
+      this.teleinfoNote = undefined;
     }
     if ([...codes].some((c) => kindOf(c) === KINDS.POST)) {
       const posts = await secondary(READS.POSTS, 'posts');
       put(posts.json, KINDS.POST, posts.at);
-    }
-    const indexes = await secondary(READS.INDEXES, 'indexes');
-    for (const target of this.metersOf(indexes.json, indexes.at)) {
-      targets.set(target.code, target);
     }
     return { targets, unread };
   }
@@ -1347,6 +1357,7 @@ export class Rt2App {
     if (this.round?.unread.length > 0) {
       parts.push(T.groupsUnread(this.round.unread));
     }
+    if (this.teleinfoNote) parts.push(T.teleinfoNote[this.teleinfoNote]);
     // A guard of a zone answering no mode cannot be confirmed by a read: said as such, never
     // as "sent again" (it is sent again only at a restart, at most 3 times).
     const unconfirmable = [...this.guards.values()].filter(

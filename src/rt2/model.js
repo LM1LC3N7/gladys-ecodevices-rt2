@@ -123,6 +123,20 @@ function ticNumber(raw, range) {
   return Number.isInteger(raw) ? measure(raw, range) : undefined;
 }
 
+/**
+ * What a `Get=TI` answer holds that this version does not read: `three-phase` (`IINST1`..`3`:
+ * the current is not published), `not-historic` (none of `PAPP`, `IINST`, `PTEC` understood:
+ * the standard mode of a Linky, say); undefined otherwise.
+ */
+export function teleinfoNote(json) {
+  if (json === null || typeof json !== 'object') return undefined;
+  if (valueOf(json, KINDS.TELEINFO, 1) === undefined) return 'not-historic';
+  if (['IINST1', 'IINST2', 'IINST3'].some((key) => own(json, key) !== undefined)) {
+    return 'three-phase';
+  }
+  return undefined;
+}
+
 /** The value of a relay, input, zone, X-THL, teleinformation or post in its group's answer. */
 export function valueOf(json, kind, n) {
   if (kind === KINDS.RELAY) return bit(own(json, `R${n}`));

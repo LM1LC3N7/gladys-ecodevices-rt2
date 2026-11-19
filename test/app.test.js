@@ -24,7 +24,7 @@ test('start: one round at once (relays, inputs, indexes), connected, Discover; n
   assert.equal(rounds(world).length, 1);
   assert.deepEqual(
     world.requests.map((r) => new URL(r.path, 'http://x').search.replace(`?key=${KEY}&`, '')),
-    ['Get=R', 'Get=D', 'Get=FP', 'Get=XTHL', 'Index=all'],
+    ['Get=R', 'Get=D', 'Index=all', 'Get=FP', 'Get=XTHL'],
   );
   assert.equal(world.peak, 1, 'one request at a time');
   assert.equal(gladys.fake.connectionStatus.connected, true);
@@ -125,8 +125,8 @@ test('a secondary group failing (FP 500, Index=all 404) never stops the round no
   });
   await start();
   assert.equal(gladys.fake.connectionStatus.connected, true);
-  assert.match(message(gladys), /Not read this time .*pilot-wire zones, indexes/);
-  assert.match(message(gladys, 'fr'), /Non lus cette fois .*zones de fil pilote, index/);
+  assert.match(message(gladys), /Not read this time .*indexes, pilot-wire zones/);
+  assert.match(message(gladys, 'fr'), /Non lus cette fois .*index, zones de fil pilote/);
   assert.equal(gladys.fake.lastState(F('pilot-wire', 'fp1', 'mode')), undefined);
   assert.equal(gladys.fake.lastState(F('relay', 'r1', 'readonly')), 0);
   app.stop();

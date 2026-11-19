@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { targetStates } from '../src/devices.js';
-import { kindOf, valueOf } from '../src/rt2/model.js';
+import { kindOf, teleinfoNote, valueOf } from '../src/rt2/model.js';
 import { fakeRt2 } from './helpers/fakeRt2.js';
 import { CONFIG, F, SECOND, created, setup } from './helpers/app.js';
 
@@ -48,6 +48,16 @@ test('his Get=TI: 870 VA, 4 A, the period TH..; ADCO masked', () => {
   assert.deepEqual(states({ ...GET_TI, PTEC: 'HPJR' }, 'fr')['tariff-period'], {
     text: 'Heures pleines jour rouge (Tempo)',
   });
+});
+
+test('Get=TI: three-phase and standard mode are said, not read', () => {
+  assert.equal(teleinfoNote(GET_TI), undefined);
+  assert.equal(teleinfoNote({ ...GET_TI, IINST: '', IINST1: '004' }), 'three-phase');
+  assert.equal(
+    teleinfoNote({ product: 'EcoDevices_RT', status: 'Success', SINSTS: '00870' }),
+    'not-historic',
+  );
+  assert.equal(teleinfoNote(undefined), undefined);
 });
 
 test('Get=TI: a text not understood is unknown, never 0 nor a period', () => {
@@ -108,6 +118,11 @@ test('his RT2 with TIC and P1-P2 listed: Discover, the states Gladys shows', asy
   assert.ok(!ids.includes('ext:rt2:post:p3'), 'a post not listed is not offered');
   const tic = gladys.fake.discoveredDevices.find((d) => d.external_id === 'ext:rt2:teleinfo:tic1');
   assert.equal(tic.name, 'Téléinformation 1 (TIC1)');
+  assert.equal(tic.model, 'Eco-Devices RT2 TIC');
+  assert.equal(
+    gladys.fake.discoveredDevices.find((d) => d.external_id === 'ext:rt2:post:p1').model,
+    'Eco-Devices RT2 Poste',
+  );
   assert.deepEqual(
     tic.features.map((f) => [f.name, f.category, f.type, f.unit ?? null]),
     [
@@ -188,5 +203,62 @@ test('unlisted later: the teleinformation and the posts are no longer read', asy
       .some((r) => /Get=(TI|P)$/.test(r.path)),
   );
   assert.ok(![...app.model.keys()].some((code) => /^(tic|p)\d/.test(code)));
+  app.stop();
+});
+
+// Review rt2-020 r1, I1: seven groups on a slow box; Get=TI silent. The budget of the round
+// leaves Get=P unsent: unread and said, the relays and the index still published.
+test('a slow box, Get=TI silent: the relays and the index published, TIC and the posts said unread', async () => {
+  const world = hisRt2();
+  world.latency = (r) => (/Get=TI$/.test(r.path) ? 60 * SECOND : 3 * SECOND);
+  const devices = [
+    created('relay', 'r1'),
+    created('meter', 'ti1', { feature: 'energy-index', id: 'id-ti1' }),
+    created('teleinfo', 'tic1'),
+    created('post', 'p1'),
+  ];
+  const { app, gladys, start, wait, states } = await setup({
+    world,
+    devices,
+    config: { ...CONFIG, extensions: 'FP1, THL1, TIC, P1' },
+  });
+  await start();
+  await wait(25 * SECOND);
+  const order = world
+    .reads()
+    .slice(0, 7)
+    .map((r) => /(Get=\w+|Index=all)$/.exec(r.path)[1]);
+  assert.deepEqual(order.slice(0, 3), ['Get=R', 'Get=D', 'Index=all'], order.join(' '));
+  assert.ok(!order.includes('Get=P'), 'Get=P left unsent by the budget');
+  assert.ok(states(F('relay', 'r1', 'readonly')).length > 0, 'the relays published');
+  assert.equal(gladys.fake.lastState(F('meter', 'ti1', 'energy-index')), 12345.678);
+  assert.deepEqual(states(TIC('apparent-power')), []);
+  assert.deepEqual(states(POST(1)), [], 'never 0 for a post not read');
+  assert.match(message(gladys), /Not read this time .*teleinformation, posts/);
+  app.stop();
+});
+
+test('a three-phase or standard-mode teleinformation is said in the status, then cleared', async () => {
+  const world = hisRt2();
+  world.fixtures.set('TI', { ...GET_TI, IINST: '', IINST1: '004', IINST2: '003', IINST3: '002' });
+  const config = { ...CONFIG, extensions: 'TIC' };
+  const { app, gladys, start, wait } = await setup({ world, config });
+  await start();
+  assert.match(
+    message(gladys),
+    /Three-phase teleinformation: the current \(IINST1-3\) is not read/,
+  );
+  assert.match(message(gladys, 'fr'), /Téléinformation triphasée/);
+  world.fixtures.set('TI', { product: 'EcoDevices_RT', status: 'Success', SINSTS: '00870' });
+  await wait(15 * SECOND);
+  assert.match(message(gladys), /standard mode of a Linky\?/);
+  world.fixtures.set('TI', GET_TI);
+  await wait(15 * SECOND);
+  assert.doesNotMatch(message(gladys), /Three-phase|standard mode/);
+  world.fixtures.set('TI', { product: 'EcoDevices_RT', status: 'Success', SINSTS: '00870' });
+  await wait(15 * SECOND);
+  await app.configUpdated({ ...config, extensions: '' });
+  await wait(15 * SECOND);
+  assert.doesNotMatch(message(gladys), /standard mode/, 'TIC unlisted: no longer said');
   app.stop();
 });

@@ -43,6 +43,11 @@ to date at the end of every milestone.
 
 ## Questions pour cce66
 
+Open (milestone 2, 2026-11-19): a post with a clamp: the value of `Get=P`
+(`INSTANT_POSTE<n>`) and the one of the page of the RT2 at the same time
+(the unit W is only the default of the Home Assistant integration; all his
+posts read 0).
+
 Answered on 2026-10-31 (t/11448 #7):
 
 - [x] `Get=R`: `R1`..`R10`, numbers 0/1, with `"product": "EcoDevices_RT"`

@@ -21,6 +21,11 @@ the notes of the version's GitHub Release.
   read twice.
 - Instant power of the posts (`P1-P8` in "Extensions", read by `Get=P`), in
   W, 0 included. Only the posts listed: a post without a clamp also reads 0.
+- The status says when the teleinformation is three-phase (current not
+  read) or in standard mode (nothing read).
+- A slow Eco-Devices: the optional groups (zones, X-THL, teleinformation,
+  posts) are read after the relays, inputs and indexes; a group the 20 s of
+  a round leaves unsent is said unread and the rest is still published.
 - Tests on the full `status.json` of a real RT2 (firmware 3.00.04), kept as
   a fixture.
 

@@ -211,6 +211,16 @@ export const T = {
   ),
   relayErrors: (list) =>
     both(`Relays not understood: ${list.en}.`, `Relais non compris : ${list.fr}.`),
+  teleinfoNote: {
+    'three-phase': both(
+      'Three-phase teleinformation: the current (IINST1-3) is not read by this version.',
+      'Téléinformation triphasée : l’intensité (IINST1-3) n’est pas lue par cette version.',
+    ),
+    'not-historic': both(
+      'Teleinformation: no PAPP, IINST nor PTEC understood (standard mode of a Linky?): not read by this version.',
+      'Téléinformation : ni PAPP, ni IINST, ni PTEC compris (Linky en mode standard ?) : non lue par cette version.',
+    ),
+  },
   extensionErrors: (list) =>
     both(`Extensions not understood: ${list.en}.`, `Extensions non comprises : ${list.fr}.`),
   counterErrors: (list) =>

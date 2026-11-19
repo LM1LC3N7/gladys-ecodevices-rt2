@@ -333,19 +333,28 @@ test('M1: a read back answering a number refuses Comfort at once (the text read 
 test('M1: a round whose Get=FP answered a number refuses Comfort before the round ends', async () => {
   const devices = [created('pilot-wire', 'fp1')];
   const world = fakeRt2();
-  const { app, start, cmd, wait } = await setup({ world, devices, config: ZONES });
+  // The teleinformation listed: its group, read after Get=FP, keeps the round going.
+  const { app, start, cmd, wait } = await setup({
+    world,
+    devices,
+    config: { ...ZONES, extensions: 'FP1, TIC' },
+  });
   await start();
   world.FP[1] = 0;
-  world.latency = (r) => (/Index=all/.test(r.path) ? 5 * SECOND : 20);
+  world.latency = (r) => (/Get=TI$/.test(r.path) ? 5 * SECOND : 20);
   await wait(15 * SECOND - 1000);
   for (
     let i = 0;
-    i < 100 && !(world.inFlight === 1 && /Index=all/.test(world.requests.at(-1).path));
+    i < 100 && !(world.inFlight === 1 && /Get=TI$/.test(world.requests.at(-1).path));
     i += 1
   ) {
     await wait(50);
   }
-  assert.match(world.requests.at(-1).path, /Index=all/, 'the round is still reading the indexes');
+  assert.match(
+    world.requests.at(-1).path,
+    /Get=TI$/,
+    'the round is still reading the teleinformation',
+  );
   assert.equal(world.inFlight, 1);
   const comfort = await cmd(devices[0], FP1, PILOT.COMFORT);
   assert.equal(comfort.success, false);

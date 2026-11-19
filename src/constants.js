@@ -250,7 +250,10 @@ export const HOUR = 60 * MINUTE;
 export const TIMINGS = {
   /** One request of the polling. */
   requestTimeout: 5 * SECOND,
-  /** A round (up to five requests) takes no longer than this. */
+  /**
+   * A round (up to seven requests: R, D, Index=all first, then FP, XTHL, TI, P when listed)
+   * takes no longer than this; a group left unsent by it is unread, the rest published.
+   */
   roundBudget: 20 * SECOND,
   /** Failed rounds: 10 s, 30 s, 1, 2 then 5 min, never shorter than the interval. */
   backoff: [10 * SECOND, 30 * SECOND, MINUTE, 2 * MINUTE, 5 * MINUTE],

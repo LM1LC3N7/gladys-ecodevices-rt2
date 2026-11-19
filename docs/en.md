@@ -305,11 +305,13 @@ that succeeds.
   (HC/HP, Tempo), the prices, the virtual outputs and EnOcean are not in this
   version.
 - Teleinformation details: the ones of `Get=TI` (one teleinformation input),
-  the historic mode only (`PAPP`, `IINST`, `PTEC`); a tariff period we do not
+  the single-phase historic mode only (`PAPP`, `IINST`, `PTEC`): in
+  three-phase the current (`IINST1-3`) is not published, and a Linky in
+  standard mode (`SINSTS`…) gives nothing; the status says so in both cases; a tariff period we do not
   know is not published, a value that is not a number neither (never 0).
   Posts: only those listed (a post without clamp reads 0 too, and 0 W is a
   value for a listed post); the unit, W, is the one of the Home Assistant
-  integration (GCE does not give it): compare with the page of the RT2.
+  integration, not yet confirmed on a real RT2 (GCE does not give it): compare with the page of the RT2.
 - Three Eco-Devices at most per integration.
 - Known by its address and port (see above). One address in two slots: the
   second is not read, the status says so.
