@@ -14,7 +14,8 @@
 // their guard (src/guard.js, from gladys-ecodevices).
 //
 // One round: `Get=R` (the relays: the round fails without it), then `Get=D`,
-// `Get=FP` (when zones are listed), `Get=XTHL` (when an X-THL is listed) and
+// `Get=FP` (when zones are listed), `Get=XTHL` (when an X-THL is listed),
+// `Get=TI` (when `TIC` is listed), `Get=P` (when a post is listed) and
 // `Index=all`. A secondary group that fails leaves its targets known without
 // value (never 0), said in the status; it never stops the round.
 //
@@ -117,6 +118,9 @@ export const isProtective = (kind, value) =>
 
 /** The group read back after a command on a kind. */
 const groupOf = (kind) => (kind === KINDS.RELAY ? READS.RELAYS : READS.PILOT);
+
+/** The kinds read only when listed in the extensions (removed from the targets when unlisted). */
+const LISTED = [KINDS.PILOT, KINDS.THL, KINDS.TELEINFO, KINDS.POST];
 
 /** The id of a Gladys device kept with the state of its index (a new device starts afresh). */
 const deviceKeyOf = (device) =>
@@ -695,8 +699,7 @@ export class Rt2App {
     this.config = next;
     // The extensions listed now: a zone or an X-THL removed is no longer a target.
     for (const [code, target] of [...this.model]) {
-      if ((target.kind === KINDS.PILOT || target.kind === KINDS.THL) && !next.extensions.has(code))
-        this.model.delete(code);
+      if (LISTED.includes(target.kind) && !next.extensions.has(code)) this.model.delete(code);
     }
     for (const code of next.extensions) {
       if (!this.model.has(code)) {
@@ -1162,6 +1165,14 @@ export class Rt2App {
       const thl = await secondary(READS.THL, 'thl');
       put(thl.json, KINDS.THL, thl.at);
     }
+    if ([...codes].some((c) => kindOf(c) === KINDS.TELEINFO)) {
+      const tic = await secondary(READS.TELEINFO, 'teleinfo');
+      put(tic.json, KINDS.TELEINFO, tic.at);
+    }
+    if ([...codes].some((c) => kindOf(c) === KINDS.POST)) {
+      const posts = await secondary(READS.POSTS, 'posts');
+      put(posts.json, KINDS.POST, posts.at);
+    }
     const indexes = await secondary(READS.INDEXES, 'indexes');
     for (const target of this.metersOf(indexes.json, indexes.at)) {
       targets.set(target.code, target);
@@ -1313,12 +1324,14 @@ export class Rt2App {
         this.saveFailed || this.storeUnreadable ? T.storeProblem : undefined,
       );
     }
-    const counts = { relays: 0, inputs: 0, zones: 0, thl: 0, meters: 0 };
+    const counts = { relays: 0, inputs: 0, zones: 0, thl: 0, teleinfo: 0, posts: 0, meters: 0 };
     for (const target of this.model.values()) {
       if (target.kind === KINDS.RELAY) counts.relays += 1;
       else if (target.kind === KINDS.INPUT) counts.inputs += 1;
       else if (target.kind === KINDS.PILOT) counts.zones += 1;
       else if (target.kind === KINDS.THL) counts.thl += 1;
+      else if (target.kind === KINDS.TELEINFO) counts.teleinfo += 1;
+      else if (target.kind === KINDS.POST) counts.posts += 1;
       else if (target.at !== undefined) counts.meters += 1;
     }
     const parts = [T.connected(counts), ...this.relayHints()];
@@ -1987,7 +2000,7 @@ export class Rt2App {
     const keys = new Set(
       [F.READONLY, F.SWITCH, F.LIGHT].filter((key) => created.has(ids.feature(key))),
     );
-    for (const [key, state] of targetStates(target, keys)) {
+    for (const [key, state] of targetStates(target, keys, this.config.language)) {
       const id = ids.feature(key);
       if (created.has(id)) this.publisher.push(id, state);
     }

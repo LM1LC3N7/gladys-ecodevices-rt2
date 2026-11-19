@@ -3,7 +3,9 @@
 // integration knows and their values. A target is
 //   { code, kind, n, value }
 // `value`: 0 / 1 for a relay or an input, a Gladys pilot-wire mode (0-5) for
-// a zone, `{ temperature, humidity, luminosity }` for an X-THL, the index in
+// a zone, `{ temperature, humidity, luminosity }` for an X-THL,
+// `{ apparentPower, current, period }` for the teleinformation details (the
+// period: a code of TARIFF_PERIODS), the power (W) of a post, the index in
 // the published unit (kWh or m³) for a meter; `undefined` when the answer
 // does not give it (absent, a text, out of range, 0 for an index: never 0).
 //
@@ -23,6 +25,7 @@ import {
   LIMITS,
   LIMITS_RT2,
   RANGES,
+  TARIFF_PERIODS,
   UNIT_FACTORS,
 } from '../constants.js';
 
@@ -71,7 +74,7 @@ export function checkEnvelope(json) {
 
 /** The kind of a code; undefined when not one. */
 export function kindOf(code) {
-  const match = /^(r|d|fp|thl|ti|tore|c)(\d{1,2})$/.exec(code);
+  const match = /^(r|d|fp|thl|ti|tic|tore|c|p)(\d{1,2})$/.exec(code);
   if (!match) return undefined;
   const n = Number(match[2]);
   const max = {
@@ -80,6 +83,8 @@ export function kindOf(code) {
     fp: LIMITS_RT2.zones,
     thl: LIMITS_RT2.thl,
     ti: LIMITS_RT2.ti,
+    tic: LIMITS_RT2.tic,
+    p: LIMITS_RT2.posts,
     tore: LIMITS_RT2.tore,
     c: LIMITS_RT2.counters,
   }[match[1]];
@@ -90,6 +95,8 @@ export function kindOf(code) {
     fp: KINDS.PILOT,
     thl: KINDS.THL,
     ti: KINDS.METER,
+    tic: KINDS.TELEINFO,
+    p: KINDS.POST,
     tore: KINDS.METER,
     c: KINDS.METER,
   }[match[1]];
@@ -110,7 +117,13 @@ export function fixedCodes(extensions) {
 /** `fp5` -> the key `FP2 Zone 1`. */
 export const zoneKey = (n) => `FP${Math.floor((n - 1) / 4) + 1} Zone ${((n - 1) % 4) + 1}`;
 
-/** The value of a relay, input, zone or X-THL in its group's answer. */
+/** A teleinformation number: a text of digits only (`"00870"`), or a number; undefined otherwise. */
+function ticNumber(raw, range) {
+  if (typeof raw === 'string' && /^\d{1,6}$/.test(raw.trim())) return measure(Number(raw), range);
+  return Number.isInteger(raw) ? measure(raw, range) : undefined;
+}
+
+/** The value of a relay, input, zone, X-THL, teleinformation or post in its group's answer. */
 export function valueOf(json, kind, n) {
   if (kind === KINDS.RELAY) return bit(own(json, `R${n}`));
   if (kind === KINDS.INPUT) return bit(own(json, `D${n}`));
@@ -130,6 +143,17 @@ export function valueOf(json, kind, n) {
       ? undefined
       : value;
   }
+  if (kind === KINDS.TELEINFO) {
+    const ptec = own(json, 'PTEC');
+    const period = typeof ptec === 'string' ? ptec.trim() : undefined;
+    const value = {
+      apparentPower: ticNumber(own(json, 'PAPP'), RANGES.apparentPower),
+      current: ticNumber(own(json, 'IINST'), RANGES.current),
+      period: TARIFF_PERIODS.has(period) ? period : undefined,
+    };
+    return Object.values(value).every((v) => v === undefined) ? undefined : value;
+  }
+  if (kind === KINDS.POST) return measure(own(json, `INSTANT_POSTE${n}`), RANGES.power);
   return undefined;
 }
 

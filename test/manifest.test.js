@@ -154,7 +154,7 @@ test('the published features: supported options (none here) and units from the c
     'temperature-sensor': ['celsius'],
     'humidity-sensor': ['percent'],
     'light-sensor': ['lux'],
-    'energy-sensor': ['kilowatt-hour'],
+    'energy-sensor': ['kilowatt-hour', 'volt-ampere', 'ampere', 'watt'],
     'volume-sensor': ['cubicmeter'],
   };
   for (const target of [
@@ -165,6 +165,8 @@ test('the published features: supported options (none here) and units from the c
     { code: 'ti1', kind: 'meter', n: 1, feature: 'energy-index' },
     { code: 'c1', kind: 'meter', n: 1, feature: 'water-index' },
     { code: 'c2', kind: 'meter', n: 2, feature: 'gas-index' },
+    { code: 'tic1', kind: 'teleinfo', n: 1 },
+    { code: 'p1', kind: 'post', n: 1 },
   ]) {
     for (const relayKind of [undefined, 'switch', 'light']) {
       const device = buildDevice(gladys, target, { language: 'fr', relayKind });

@@ -27,8 +27,9 @@ leurs capteurs X-THL (température, humidité, luminosité).
    - listez dans « Relais pilotables par Gladys » les relais que Gladys doit
      piloter, et eux seulement (par ex. `R1` ; voir « Relais » plus bas :
      jamais une pompe, une VMC, une gâche…) ;
-   - listez dans « Extensions » les X-4FP et X-THL branchés (par ex.
-     `FP1-FP4, THL1`) ;
+   - listez dans « Extensions » les X-4FP et X-THL branchés, `TIC` pour le
+     détail de la téléinformation et les postes à amener (par ex.
+     `FP1-FP4, THL1, TIC, P1-P2`) ;
    - listez dans « Compteurs d’impulsions » ceux à amener, avec ce qu’ils
      mesurent et l’unité de leur index dans l’Eco-Devices (par ex.
      `C1:water:l, C2:gas:m3`).
@@ -75,22 +76,25 @@ valeur.
 
 ## Ce que vous obtenez
 
-| Sur l’Eco-Devices RT2                   | Dans Gladys                                                        | Code (dans le nom) |
-| --------------------------------------- | ------------------------------------------------------------------ | ------------------ |
-| Index de téléinformation 1 à 7          | index d’énergie (kWh)                                              | `TI1`              |
-| Pince ampèremétrique 1 à 16             | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
-| Compteur d’impulsions 1 à 12 (si listé) | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
-| Relais 1 à 10 (2 + un X-8R)             | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
-| Entrée 1 à 12                           | une entrée binaire (lecture seule)                                 | `D3`               |
-| Zone d’un X-4FP (FP1 à FP8, si listée)  | fil pilote (Arrêt, Hors-gel, Éco, Confort, Confort -1, Confort -2) | `FP5`              |
-| X-THL 1 et 2 (si listé)                 | température (°C), humidité (%), luminosité (lux)                   | `THL1`             |
+| Sur l’Eco-Devices RT2                      | Dans Gladys                                                        | Code (dans le nom) |
+| ------------------------------------------ | ------------------------------------------------------------------ | ------------------ |
+| Index de téléinformation 1 à 7             | index d’énergie (kWh)                                              | `TI1`              |
+| Pince ampèremétrique 1 à 16                | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
+| Compteur d’impulsions 1 à 12 (si listé)    | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
+| Relais 1 à 10 (2 + un X-8R)                | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
+| Entrée 1 à 12                              | une entrée binaire (lecture seule)                                 | `D3`               |
+| Zone d’un X-4FP (FP1 à FP8, si listée)     | fil pilote (Arrêt, Hors-gel, Éco, Confort, Confort -1, Confort -2) | `FP5`              |
+| X-THL 1 et 2 (si listé)                    | température (°C), humidité (%), luminosité (lux)                   | `THL1`             |
+| Détail de la téléinformation (`TIC` listé) | puissance apparente (VA), intensité (A), période tarifaire (texte) | `TIC1`             |
+| Poste 1 à 8 (si listé)                     | puissance instantanée (W)                                          | `P1`               |
 
 L’API répond pour les 10 relais et les 12 entrées, câblés ou non : tous sont
 proposés dans Découverte. La zone n de fil pilote est la zone z du X-4FP e :
 n = 4 × (e − 1) + z (deux X-4FP au plus).
 
 L’Eco-Devices est lu toutes les 15 secondes par défaut (5 s au moins) : les
-relais, puis les entrées, les zones (si listées), les X-THL (si listés) et
+relais, puis les entrées, les zones (si listées), les X-THL (si listés), le
+détail de la téléinformation et les postes (si listés) et
 les index, une requête après l’autre. Une valeur que l’Eco-Devices ne donne
 pas (absente, un texte, hors plage) n’est pas publiée : jamais comme 0. Un
 index lu à 4294967295 est une entrée sans rien derrière (une entrée de
@@ -316,9 +320,19 @@ y remet pas. Ils reviennent à la première lecture réussie.
 
 ## Limites
 
-- Téléinformation, compteurs d’impulsions, relais, entrées, X-4FP et X-THL
-  seulement (les index de pince attendent la confirmation de leur unité) : la puissance instantanée, les postes et sous-postes, les
-  prix, les sorties virtuelles et EnOcean ne sont pas dans cette version.
+- Téléinformation (index, puissance apparente, intensité, période
+  tarifaire), puissance instantanée des postes, compteurs d’impulsions,
+  relais, entrées, X-4FP et X-THL seulement (les index de pince attendent la
+  confirmation de leur unité) : la puissance instantanée d’une pince, les
+  sous-postes, les index par période (HC/HP, Tempo), les prix, les sorties
+  virtuelles et EnOcean ne sont pas dans cette version.
+- Détail de la téléinformation : celui de `Get=TI` (une entrée de
+  téléinformation), en mode historique seulement (`PAPP`, `IINST`, `PTEC`) ;
+  une période tarifaire inconnue n’est pas publiée, une valeur qui n’est pas
+  un nombre non plus (jamais 0). Postes : seulement ceux listés (un poste
+  sans pince lit 0 lui aussi, et 0 W est une vraie valeur pour un poste
+  listé) ; l’unité, W, est celle de l’intégration Home Assistant (GCE ne la
+  donne pas) : comparez avec la page du RT2.
 - Trois Eco-Devices au plus par intégration.
 - Reconnu par son adresse et son port (voir plus haut). Une même adresse dans
   deux emplacements : le second n’est pas lu, l’état le dit.

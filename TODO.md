@@ -30,11 +30,15 @@ to date at the end of every milestone.
       yet. Applied in 0.1.3 (see "Decisions after the second real answers").
 - [ ] **First real run** (cce66): the integration itself on his RT2; until
       then the docs and the manifest say "never tested with a real device".
-- [ ] **Milestone 2**: instant power of the posts (`Get=P`; none per clamp
-      in `xdevices.json`, see the decisions of 2026-11-03), posts and
-      sub-posts (`Index=P|S`), teleinformation details (`Get=TI`: current
-      tariff, apparent power), virtual outputs (`Get=VO`), EnOcean (`Get=XENO`:
-      actuators behind the same rules as the relays), prices.
+- [x] **Milestone 2, part 1** (2026-11-19, from cce66's answers t/11448
+      #21): teleinformation details (`Get=TI`: `PAPP` VA, `IINST` A, `PTEC`
+      as a text) behind `TIC` in the extensions; instant power of the posts
+      (`Get=P`, W) behind `P1-P8`. See "Decisions, milestone 2".
+- [ ] **Milestone 2, the rest**: indexes of the posts and sub-posts
+      (`Index=P|S`), sub-posts instant (`Get=S`), indexes per tariff period
+      of `Get=TI` (HCHC/HCHP, Tempo: `Index_TI1` is the total only), the
+      three-phase fields (`IINST1-3`), virtual outputs (`Get=VO`), EnOcean
+      (`Get=XENO`: actuators behind the same rules as the relays), prices.
 - [ ] **Release**: `gi ci`, Release workflow, topic (only after the review).
 
 ## Questions pour cce66
@@ -333,3 +337,24 @@ Still open, to ask on the forum (short, in French):
 - [ ] Docs, CHANGELOG and TODO: a kept Off/Frost is resent on another mode read only while some of its 3 resends are left (restart resends count). After that the status says "check on site". Lifting it by choosing Eco/Comfort needs the heating-modes option.
 - [ ] Test pinning Louis's guard decision: Off clicked on a zone answering 0, the zone then answers "Confort", the next read sends `SetFP01=3`. Optionally a test pinning the documented window (a "strict variant" mutant survives).
 - [ ] Old wording: `TODO.md` "a frozen index at best", the comment at `src/app.js:2252` "(a number)", and `guardsUnconfirmable` in `src/i18n.js` "no mode" → "no known mode".
+
+## Decisions, milestone 2 (2026-11-19)
+
+- **Opt-in, like the X-4FP and X-THL**: `TIC` and `P1-P8` in "Extensions";
+  `Get=TI` and `Get=P` are read only then (no new request for the others),
+  as secondary groups (a failure leaves them unread, said, never 0).
+- **Teleinformation details** (kind `teleinfo`, code `tic1`, one input:
+  `Get=TI` answers one): `apparent-power` (`energy-sensor/power`, VA,
+  0-99999), `current` (`energy-sensor/current`, A, 0-999), `tariff-period`
+  (`text/text`, the period in the language of the configuration). Numbers
+  read from digits only (`"00870"`); a period outside TARIFF_PERIODS (the
+  11 codes of the historic teleinformation) is never published. Standard
+  mode (Linky `SINSTS`, `NTARF`…) not handled: no answer seen.
+- **BASE not read**: on cce66's RT2 `BASE` of `Get=TI` (132,852,908) follows
+  `Index_TI1` (132,533,718 on 10-31, 132,833,958 in status.json on 11-14):
+  the same index in Wh. Only the HC/HP or Tempo indexes would add something.
+- **Posts** (kind `post`, `p1`..`p8`): `energy-sensor/power` in W (the unit
+  of the Home Assistant integration; GCE gives none: to compare with the
+  page of the RT2), signed, -250 kW to 250 kW. 0 is published for a listed
+  post (a real value); a post not listed is never offered, since a post
+  without clamps reads 0 as well.

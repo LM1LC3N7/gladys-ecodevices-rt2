@@ -75,6 +75,10 @@ export const FEATURE_NAMES = {
   [F.ENERGY]: both('Energy index', 'Index d’énergie'),
   [F.WATER]: both('Water index', 'Index d’eau'),
   [F.GAS]: both('Gas index', 'Index de gaz'),
+  [F.APPARENT_POWER]: both('Apparent power', 'Puissance apparente'),
+  [F.CURRENT]: both('Current', 'Intensité'),
+  [F.TARIFF_PERIOD]: both('Tariff period', 'Période tarifaire'),
+  [F.POWER]: both('Instant power', 'Puissance instantanée'),
 };
 
 /** The code as the user types it: `R3`, `FP5`, `TORE2`. */
@@ -99,6 +103,10 @@ export function targetName(target) {
         return both(`Clamp ${n} (${code})`, `Pince ${n} (${code})`);
       }
       return both(`Counter ${n} (${code})`, `Compteur ${n} (${code})`);
+    case KINDS.TELEINFO:
+      return both(`Teleinformation ${n} (${code})`, `Téléinformation ${n} (${code})`);
+    case KINDS.POST:
+      return both(`Post ${n} (${code})`, `Poste ${n} (${code})`);
     default:
       return both(`X-THL ${n} (${code})`, `X-THL ${n} (${code})`);
   }
@@ -180,6 +188,8 @@ export const T = {
         [counts.inputs, 'input(s)', 'entrée(s)'],
         [counts.zones, 'pilot-wire zone(s)', 'zone(s) de fil pilote'],
         [counts.thl, 'X-THL', 'X-THL'],
+        [counts.teleinfo, 'teleinformation', 'téléinformation'],
+        [counts.posts, 'post(s)', 'poste(s)'],
         [counts.meters, 'index(es)', 'index'],
       ]
         .filter(([n]) => n > 0)
@@ -225,6 +235,8 @@ export const T = {
       inputs: both('inputs', 'entrées'),
       zones: both('pilot-wire zones', 'zones de fil pilote'),
       thl: both('X-THL', 'X-THL'),
+      teleinfo: both('teleinformation', 'téléinformation'),
+      posts: both('posts', 'postes'),
       indexes: both('indexes', 'index'),
     };
     const list = groups.map((g) => names[g] ?? both(g, g));

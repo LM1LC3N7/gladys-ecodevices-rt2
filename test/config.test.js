@@ -71,6 +71,13 @@ test('extensions: FP1 to FP8, THL1 and THL2, ranges; the rest reported', () => {
   assert.deepEqual(errors, ['FP9', 'THL3', 'FP3-FP1', 'FP1-THL2']);
 });
 
+test('extensions: TIC (the teleinformation details) and the posts P1 to P8', () => {
+  const { codes, errors } = parseExtensions('TIC, P1-P3, p8, TIC2, P9, P0, TIC-P2, P2-FP3');
+  assert.deepEqual([...codes], ['tic1', 'p1', 'p2', 'p3', 'p8']);
+  assert.deepEqual(errors, ['TIC2', 'P9', 'P0', 'TIC-P2', 'P2-FP3']);
+  assert.deepEqual([...parseExtensions('tic1').codes], ['tic1']);
+});
+
 test('counters: C1 to C12, a type, a unit of that type; the default unit; no prototype key', () => {
   const { counters, errors } = parseCounters(
     'C1:water:l, c2=gas, C3:electricity:kwh, C4:water:kwh, C13:gas, C5:constructor, C6:__proto__, C1:gas',

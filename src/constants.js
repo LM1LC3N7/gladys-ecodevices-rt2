@@ -13,6 +13,12 @@
 //     number instead (0 on cce66's RT2, 2026-10-31) is not understood
 //     (pyecodevices_rt2 maps a 0 to "unknown": no X-4FP on that zone);
 //   - `Get=XTHL`: the X-THL `THL<n>-TEMP|HUM|LUM`;
+//   - `Get=TI`: the teleinformation details as texts (cce66's RT2, Sagem SC10
+//     in historic mode, 2026-11-18: `"PAPP": "00870"` VA, `"IINST": "004"` A,
+//     `"PTEC": "TH.."` the tariff period, `"BASE"` the index of Index_TI1);
+//   - `Get=P`: the instant power of the 8 posts, `INSTANT_POSTE<n>`, numbers
+//     (0 for a post without clamp too), in W (the unit of the Home Assistant
+//     integration; not given by GCE);
 //   - `Index=all`: the indexes, `Index_TI<n>` (teleinformation),
 //     `Index_TORE<n>` (current clamps 1-16; cce66's RT2 also
 //     answers 17-20, an X400 CT extension once wired, frozen there), `Index_C<n>`
@@ -40,6 +46,8 @@ export const READS = {
   INPUTS: 'Get=D',
   PILOT: 'Get=FP',
   THL: 'Get=XTHL',
+  TELEINFO: 'Get=TI',
+  POSTS: 'Get=P',
   INDEXES: 'Index=all',
 };
 
@@ -82,6 +90,10 @@ export const KINDS = {
   PILOT: 'pilot-wire',
   THL: 'thl',
   METER: 'meter',
+  /** The teleinformation details of `Get=TI` (code `tic1`). */
+  TELEINFO: 'teleinfo',
+  /** A post of the Eco-Devices (`p1`..`p8`): its instant power. */
+  POST: 'post',
 };
 
 /** Feature keys (the last part of the feature external ids): frozen. */
@@ -99,7 +111,31 @@ export const FEATURES = {
   ENERGY: 'energy-index',
   WATER: 'water-index',
   GAS: 'gas-index',
+  /** Teleinformation details (`Get=TI`). */
+  APPARENT_POWER: 'apparent-power',
+  CURRENT: 'current',
+  TARIFF_PERIOD: 'tariff-period',
+  /** A post (`Get=P`). */
+  POWER: 'power',
 };
+
+/**
+ * The tariff periods of the historic teleinformation (`PTEC`, Enedis-NOI-CPT_02E):
+ * the text published; a period not listed here is never published.
+ */
+export const TARIFF_PERIODS = new Map([
+  ['TH..', { en: 'All hours', fr: 'Toutes les heures' }],
+  ['HC..', { en: 'Off-peak hours', fr: 'Heures creuses' }],
+  ['HP..', { en: 'Peak hours', fr: 'Heures pleines' }],
+  ['HN..', { en: 'Normal hours (EJP)', fr: 'Heures normales (EJP)' }],
+  ['PM..', { en: 'Peak mobile hours (EJP)', fr: 'Heures de pointe mobile (EJP)' }],
+  ['HCJB', { en: 'Off-peak, blue day (Tempo)', fr: 'Heures creuses jour bleu (Tempo)' }],
+  ['HCJW', { en: 'Off-peak, white day (Tempo)', fr: 'Heures creuses jour blanc (Tempo)' }],
+  ['HCJR', { en: 'Off-peak, red day (Tempo)', fr: 'Heures creuses jour rouge (Tempo)' }],
+  ['HPJB', { en: 'Peak, blue day (Tempo)', fr: 'Heures pleines jour bleu (Tempo)' }],
+  ['HPJW', { en: 'Peak, white day (Tempo)', fr: 'Heures pleines jour blanc (Tempo)' }],
+  ['HPJR', { en: 'Peak, red day (Tempo)', fr: 'Heures pleines jour rouge (Tempo)' }],
+]);
 
 /** What a relay declared in the configuration becomes. */
 export const RELAY_KINDS = [FEATURES.SWITCH, FEATURES.LIGHT];
@@ -143,6 +179,9 @@ export const LIMITS_RT2 = {
   ti: 7,
   tore: 16,
   counters: 12,
+  /** One teleinformation answered by `Get=TI`. */
+  tic: 1,
+  posts: 8,
 };
 
 /** A measurement out of these ranges is not one (never published). */
@@ -150,6 +189,11 @@ export const RANGES = {
   temperature: { min: -40, max: 85 },
   humidity: { min: 0, max: 100 },
   luminosity: { min: 0, max: 200_000 },
+  /** PAPP: 5 digits (VA); IINST: 3 digits (A). */
+  apparentPower: { min: 0, max: 99_999 },
+  current: { min: 0, max: 999 },
+  /** A post (W): signed, a home and its production. */
+  power: { min: -250_000, max: 250_000 },
 };
 
 /**

@@ -125,20 +125,27 @@ export function parseRelays(raw) {
   return { relays, errors: errors.slice(0, 10) };
 }
 
-const RANGE = { fp: LIMITS_RT2.zones, thl: LIMITS_RT2.thl };
+const RANGE = {
+  fp: LIMITS_RT2.zones,
+  thl: LIMITS_RT2.thl,
+  tic: LIMITS_RT2.tic,
+  p: LIMITS_RT2.posts,
+};
 
 /**
  * The extensions wired to the Eco-Devices (the API answers their values
  * whether they are there or not): pilot-wire zones `FP1-FP8` (four per
- * X-4FP), X-THL `THL1-THL2`.
+ * X-4FP), X-THL `THL1-THL2`, the teleinformation details `TIC` (`Get=TI`), the
+ * posts `P1-P8` (`Get=P`: a post without clamp reads 0 too, so only those listed).
  */
 export function parseExtensions(raw) {
   const codes = new Set();
   const errors = [];
   for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
-    const text = entry.trim().toLowerCase().replace(/\s+/g, '');
+    let text = entry.trim().toLowerCase().replace(/\s+/g, '');
     if (text === '') continue;
-    const match = /^(fp|thl)(\d{1,2})(?:-(fp|thl)?(\d{1,2}))?$/.exec(text);
+    if (text === 'tic') text = 'tic1';
+    const match = /^(fp|thl|tic|p)(\d{1,2})(?:-(fp|thl|tic|p)?(\d{1,2}))?$/.exec(text);
     const prefix = match?.[1];
     const first = Number(match?.[2]);
     const last = match?.[4] === undefined ? first : Number(match[4]);

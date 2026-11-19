@@ -4,7 +4,8 @@
 Electronics Eco-Devices RT2** (up to three in one installation), through its
 local JSON API: indexes of the teleinformation and of the pulse counters
 (clamps once their unit is confirmed), relays (read only unless you list them), digital inputs,
-pilot-wire zones of the X-4FP, X-THL sensors.
+pilot-wire zones of the X-4FP, X-THL sensors, the teleinformation details
+(apparent power, current, tariff period) and the instant power of the posts.
 
 - Indexes: never 0; a drop or a jump is held back until you accept it in
   two clicks.

@@ -25,6 +25,11 @@
 // electricity counter), `volume-sensor/decimal` in m³ (a water or gas
 // counter: never an energy index), each through its guard (src/guard.js).
 //
+// Teleinformation details (`tic1`, `Get=TI`): `energy-sensor/power` in VA
+// (PAPP), `energy-sensor/current` in A (IINST), `text/text` (PTEC: the period
+// as a text in the language of the configuration). Posts (`p1`..`p8`,
+// `Get=P`): `energy-sensor/power` in W, 0 included (a real value).
+//
 // A device published again never loses a feature: those of the device
 // already created in Gladys are kept as they are.
 // -----------------------------------------------------------------------------
@@ -34,15 +39,30 @@ import {
   DEVICE_FEATURE_TYPES as T,
   DEVICE_FEATURE_UNITS as U,
 } from '@gladysassistant/integration-sdk';
-import { FEATURES as F, INDEX_FEATURE_MAX, KINDS, PILOT, RANGES } from './constants.js';
+import {
+  FEATURES as F,
+  INDEX_FEATURE_MAX,
+  KINDS,
+  PILOT,
+  RANGES,
+  TARIFF_PERIODS,
+} from './constants.js';
 import { FEATURE_NAMES, slotName, targetName, word } from './i18n.js';
 
 const KIND_LIST = Object.values(KINDS);
 
 /** "Eco-Devices RT2", "Eco-Devices RT2 X-4FP"... from the code. */
 export const modelOf = (code) => {
-  const prefix = /^(fp|thl|ti|tore|c)\d/.exec(code)?.[1];
-  const model = { fp: 'X-4FP', thl: 'X-THL', ti: 'TIC', tore: 'Tore', c: 'Compteur' }[prefix];
+  const prefix = /^(fp|thl|tic|ti|tore|c|p)\d/.exec(code)?.[1];
+  const model = {
+    fp: 'X-4FP',
+    thl: 'X-THL',
+    ti: 'TIC',
+    tic: 'TIC',
+    tore: 'Tore',
+    c: 'Compteur',
+    p: 'Poste',
+  }[prefix];
   if (/^r([3-9]|10)$/.test(code)) return 'Eco-Devices RT2 X-8R';
   return model ? `Eco-Devices RT2 ${model}` : 'Eco-Devices RT2';
 };
@@ -58,6 +78,10 @@ export function featureKeys(kind, relayKind, meterFeature) {
       return [F.MODE];
     case KINDS.METER:
       return meterFeature ? [meterFeature] : [];
+    case KINDS.TELEINFO:
+      return [F.APPARENT_POWER, F.CURRENT, F.TARIFF_PERIOD];
+    case KINDS.POST:
+      return [F.POWER];
     default:
       return [F.TEMPERATURE, F.HUMIDITY, F.LUMINOSITY];
   }
@@ -162,6 +186,46 @@ export function definitionOf(key) {
         has_feedback: false,
         keep_history: true,
       };
+    case F.APPARENT_POWER:
+      return {
+        category: C.ENERGY_SENSOR,
+        type: T.ENERGY_SENSOR.POWER,
+        unit: U.VOLT_AMPERE,
+        ...RANGES.apparentPower,
+        read_only: true,
+        has_feedback: false,
+        keep_history: true,
+      };
+    case F.CURRENT:
+      return {
+        category: C.ENERGY_SENSOR,
+        type: T.ENERGY_SENSOR.CURRENT,
+        unit: U.AMPERE,
+        ...RANGES.current,
+        read_only: true,
+        has_feedback: false,
+        keep_history: true,
+      };
+    case F.TARIFF_PERIOD:
+      return {
+        category: C.TEXT,
+        type: T.TEXT.TEXT,
+        min: 0,
+        max: 0,
+        read_only: true,
+        has_feedback: false,
+        keep_history: false,
+      };
+    case F.POWER:
+      return {
+        category: C.ENERGY_SENSOR,
+        type: T.ENERGY_SENSOR.POWER,
+        unit: U.WATT,
+        ...RANGES.power,
+        read_only: true,
+        has_feedback: false,
+        keep_history: true,
+      };
     default:
       throw new Error(`unknown feature ${key}`);
   }
@@ -186,7 +250,8 @@ export const idsOf = (gladys, kind, code) => gladys.externalIds(kind, code);
 /** What a slot puts before the kind in its ids: '' for the first one, `rt2<n>:` after. */
 export const slotPrefix = (slot = 1) => (slot === 1 ? '' : `rt2${slot}:`);
 
-const ID = /:(relay|input|pilot-wire|thl|meter):([a-z]{1,4}\d{1,2})(?::([a-z-]{1,20}))?$/;
+const ID =
+  /:(relay|input|pilot-wire|thl|meter|teleinfo|post):([a-z]{1,4}\d{1,2})(?::([a-z-]{1,20}))?$/;
 
 /** The kind, code and feature key of one of our external ids of `slot`; undefined otherwise. */
 export function parseExternalId(externalId, selector, slot = 1) {
@@ -217,7 +282,7 @@ export function slotOf(externalId, selector) {
  * read (an unknown value publishes nothing, never 0). A relay's state goes
  * to every relay key (`keys`: those of the created device).
  */
-export function targetStates(target, keys) {
+export function targetStates(target, keys, language = 'en') {
   const value = target.value;
   if (value === undefined) return [];
   switch (target.kind) {
@@ -237,6 +302,19 @@ export function targetStates(target, keys) {
       return target.feature && Number.isFinite(value) && value > 0
         ? [[target.feature, { state: value }]]
         : [];
+    case KINDS.TELEINFO: {
+      const out = [];
+      if (value.apparentPower !== undefined) {
+        out.push([F.APPARENT_POWER, { state: value.apparentPower }]);
+      }
+      if (value.current !== undefined) out.push([F.CURRENT, { state: value.current }]);
+      // A period not known is never published (nor a 0).
+      const period = TARIFF_PERIODS.get(value.period);
+      if (period) out.push([F.TARIFF_PERIOD, { text: word(period, language) }]);
+      return out;
+    }
+    case KINDS.POST:
+      return Number.isFinite(value) ? [[F.POWER, { state: value }]] : [];
     default:
       return [
         [F.TEMPERATURE, value.temperature],

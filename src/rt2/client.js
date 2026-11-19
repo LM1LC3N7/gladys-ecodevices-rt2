@@ -28,7 +28,7 @@ import { checkEnvelope } from './model.js';
 export const PRIORITY = { PROTECTIVE: 0, GUARD: 1, COMMAND: 2, CONFIRM: 3, READ: 4 };
 
 /** The reads this client sends (READS of constants.js). */
-const READ = /^(Get=(R|D|FP|XTHL)|Index=all)$/;
+const READ = /^(Get=(R|D|FP|XTHL|TI|P)|Index=all)$/;
 /** The writes: a relay 01-10, a pilot-wire zone 01-08 (never 00, every zone) and its code. */
 const WRITE = /^(SetR=(0[1-9]|10)|ClearR=(0[1-9]|10)|SetFP0[1-8]=[0-5])$/;
 

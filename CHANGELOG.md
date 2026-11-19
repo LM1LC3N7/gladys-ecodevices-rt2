@@ -10,6 +10,20 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- Teleinformation details (`TIC` in "Extensions", read by `Get=TI`):
+  apparent power (VA, `PAPP`), current (A, `IINST`) and the tariff period
+  as a text (`PTEC`: "Toutes les heures", "Heures creuses"…, Tempo and EJP
+  included). A value that is not a number, or a period not known, is not
+  published (never 0). From the answer of a real RT2 (cce66, Sagem SC10 in
+  historic teleinformation). Its `BASE` is the index `TI1` already gives: not
+  read twice.
+- Instant power of the posts (`P1-P8` in "Extensions", read by `Get=P`), in
+  W, 0 included. Only the posts listed: a post without a clamp also reads 0.
+- Tests on the full `status.json` of a real RT2 (firmware 3.00.04), kept as
+  a fixture.
+
 ## [0.1.4] - 2026-11-03
 
 ### Fixed

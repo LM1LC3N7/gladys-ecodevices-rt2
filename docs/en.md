@@ -25,7 +25,9 @@ sensors (temperature, humidity, luminosity).
    - list in "Relays Gladys may drive" the relays Gladys must drive, and
      those only (e.g. `R1`; see "Relays" below: never a pump, a ventilation,
      a door strike…);
-   - list in "Extensions" the X-4FP and X-THL wired (e.g. `FP1-FP4, THL1`);
+   - list in "Extensions" the X-4FP and X-THL wired, `TIC` for the
+     teleinformation details and the posts to bring in (e.g.
+     `FP1-FP4, THL1, TIC, P1-P2`);
    - list in "Pulse counters" those to bring in, with what they measure and
      the unit of their index in the Eco-Devices (e.g.
      `C1:water:l, C2:gas:m3`).
@@ -69,23 +71,26 @@ value.
 
 ## What you get
 
-| On the Eco-Devices RT2                | In Gladys                                                        | Code (in the name) |
-| ------------------------------------- | ---------------------------------------------------------------- | ------------------ |
-| Teleinformation index 1 to 7          | energy index (kWh)                                               | `TI1`              |
-| Current clamp 1 to 16                 | not yet (see "Units" below)                                      | `TORE3`            |
-| Pulse counter 1 to 12 (when listed)   | water or gas index (m³), or energy index (kWh)                   | `C1`               |
-| Relay 1 to 10 (2 + an X-8R)           | read only, or a switch / light when you list it                  | `R3`               |
-| Input 1 to 12                         | a binary input (read only)                                       | `D3`               |
-| Zone of an X-4FP (FP1 to FP8, listed) | pilot wire (Off, Frost protection, Eco, Comfort, Comfort -1, -2) | `FP5`              |
-| X-THL 1 and 2 (when listed)           | temperature (°C), humidity (%), luminosity (lux)                 | `THL1`             |
+| On the Eco-Devices RT2                 | In Gladys                                                        | Code (in the name) |
+| -------------------------------------- | ---------------------------------------------------------------- | ------------------ |
+| Teleinformation index 1 to 7           | energy index (kWh)                                               | `TI1`              |
+| Current clamp 1 to 16                  | not yet (see "Units" below)                                      | `TORE3`            |
+| Pulse counter 1 to 12 (when listed)    | water or gas index (m³), or energy index (kWh)                   | `C1`               |
+| Relay 1 to 10 (2 + an X-8R)            | read only, or a switch / light when you list it                  | `R3`               |
+| Input 1 to 12                          | a binary input (read only)                                       | `D3`               |
+| Zone of an X-4FP (FP1 to FP8, listed)  | pilot wire (Off, Frost protection, Eco, Comfort, Comfort -1, -2) | `FP5`              |
+| X-THL 1 and 2 (when listed)            | temperature (°C), humidity (%), luminosity (lux)                 | `THL1`             |
+| Teleinformation details (`TIC` listed) | apparent power (VA), current (A), tariff period (text)           | `TIC1`             |
+| Post 1 to 8 (when listed)              | instant power (W)                                                | `P1`               |
 
 The API answers for the 10 relays and the 12 inputs, wired or not: all of
 them are offered in Discover. Pilot-wire zone n is zone z of the X-4FP e:
 n = 4 × (e − 1) + z (two X-4FP at most).
 
 The Eco-Devices is read every 15 seconds by default (5 s at least): the
-relays, then the inputs, the zones (when listed), the X-THL (when listed) and
-the indexes, one request after the other. A value the Eco-Devices does not
+relays, then the inputs, the zones (when listed), the X-THL (when listed),
+the teleinformation details and the posts (when listed) and the indexes, one
+request after the other. A value the Eco-Devices does not
 give (absent, a text, out of range) is not published: never as 0. An index
 read 4294967295 is an entry with nothing behind it (a teleinformation input
 without a meter): never offered nor published, never a jump. A zone of an
@@ -293,9 +298,18 @@ that succeeds.
 
 ## Limits
 
-- Teleinformation, pulse counters, relays, inputs, X-4FP and X-THL only
-  (the clamp indexes wait for their unit to be confirmed): the instant power, the posts and sub-posts, the prices, the
-  virtual outputs and EnOcean are not in this version.
+- Teleinformation (index, apparent power, current, tariff period), the
+  instant power of the posts, pulse counters, relays, inputs, X-4FP and
+  X-THL only (the clamp indexes wait for their unit to be confirmed): the
+  instant power of a clamp, the sub-posts, the indexes per tariff period
+  (HC/HP, Tempo), the prices, the virtual outputs and EnOcean are not in this
+  version.
+- Teleinformation details: the ones of `Get=TI` (one teleinformation input),
+  the historic mode only (`PAPP`, `IINST`, `PTEC`); a tariff period we do not
+  know is not published, a value that is not a number neither (never 0).
+  Posts: only those listed (a post without clamp reads 0 too, and 0 W is a
+  value for a listed post); the unit, W, is the one of the Home Assistant
+  integration (GCE does not give it): compare with the page of the RT2.
 - Three Eco-Devices at most per integration.
 - Known by its address and port (see above). One address in two slots: the
   second is not read, the status says so.
