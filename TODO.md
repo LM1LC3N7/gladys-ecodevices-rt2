@@ -363,3 +363,4 @@ Still open, to ask on the forum (short, in French):
   page of the RT2), signed, -250 kW to 250 kW. 0 is published for a listed
   post (a real value); a post not listed is never offered, since a post
   without clamps reads 0 as well.
+- [ ] r2 mineurs (0.2.0) : test « groupe bloqué derrière des commandes = non lu », test « coupure par commande protectrice jette la tournée ».
