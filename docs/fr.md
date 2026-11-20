@@ -2,9 +2,9 @@
 
 Amène dans Gladys **jusqu’à trois Eco-Devices RT2 de GCE Electronics** par
 leur API JSON locale : les index de la téléinformation et des compteurs
-d’impulsions (eau, gaz, électricité ; pinces ampèremétriques une fois leur
-unité confirmée), leurs
-relais, leurs entrées, les zones de fil pilote de leurs extensions X-4FP et
+d’impulsions (eau, gaz, électricité) et des compteurs de puissance des pinces
+ampèremétriques (consommation, production, injection ou soutirage, à votre
+mot), leurs relais, leurs entrées, les zones de fil pilote de leurs extensions X-4FP et
 leurs capteurs X-THL (température, humidité, luminosité).
 
 > Jamais testé avec un vrai appareil : écrit d’après la documentation de
@@ -32,7 +32,12 @@ leurs capteurs X-THL (température, humidité, luminosité).
      `FP1-FP4, THL1, TIC, P1-P2`) ;
    - listez dans « Compteurs d’impulsions » ceux à amener, avec ce qu’ils
      mesurent et l’unité de leur index dans l’Eco-Devices (par ex.
-     `C1:water:l, C2:gas:m3`).
+     `C1:eau:l, C2:gaz:m3, C3:électricité:wh` ; les mots anglais `water`,
+     `gas`, `electricity` marchent aussi) ;
+   - listez dans « Compteurs de puissance » ceux à amener, avec le mode que
+     vous leur avez donné dans la page « Compteurs de puissance » du RT2
+     (par ex. `T1, T2:production, T3:injection, T4:soutirage` ; sans mode,
+     consommation).
 
    Puis enregistrez.
 
@@ -79,7 +84,7 @@ valeur.
 | Sur l’Eco-Devices RT2                      | Dans Gladys                                                        | Code (dans le nom) |
 | ------------------------------------------ | ------------------------------------------------------------------ | ------------------ |
 | Index de téléinformation 1 à 7             | index d’énergie (kWh)                                              | `TI1`              |
-| Pince ampèremétrique 1 à 16                | pas encore (voir « Unités » plus bas)                              | `TORE3`            |
+| Compteur de puissance 1 à 20 (si listé)    | index d’énergie, de production, d’injection ou de soutirage (kWh)  | `TORE3`            |
 | Compteur d’impulsions 1 à 12 (si listé)    | index d’eau ou de gaz (m³), ou d’énergie (kWh)                     | `C1`               |
 | Relais 1 à 10 (2 + un X-8R)                | lecture seule, ou interrupteur / lumière si vous le listez         | `R3`               |
 | Entrée 1 à 12                              | une entrée binaire (lecture seule)                                 | `D3`               |
@@ -152,17 +157,32 @@ par une garde.
 **Unités.** Les index de téléinformation sont lus en Wh et publiés en kWh :
 confirmé sur un vrai RT2, dont le TI1 valait, à 143 Wh près, l’index qu’un
 Eco-Devices 3 (en Wh) lisait sur le même compteur. Sa propre page peut
-afficher des kWh : même valeur, divisée par 1000. Un index de pince
-(`Index_TORE<n>`) est l’énergie comptée sur cette pince, mais son unité (Wh
-ou kWh) n’est donnée par aucune source et ne se compare pas à la page de
-l’Eco-Devices (qui n’affiche que la puissance instantanée d’une pince) ; une
-erreur d’un facteur 1000, corrigée plus tard, serait un saut compté une fois
-comme consommation : les pinces ne sont donc **ni proposées ni publiées**
-tant qu’elle ne l’est pas ; l’état dit combien ont été lues. Seules les
-pinces 1 à 16 sont lues : le RT2 du testeur répond aussi `Index_TORE17` et
-au-delà, reliquat chez lui d’une extension X400 CT autrefois câblée (valeurs
-figées), jamais proposé. Avec une X400 CT câblée aujourd’hui, ce seraient de
-vraies pinces : à revoir quand l’unité d’une pince sera confirmée. Un compteur d’impulsions est lu dans l’unité que vous
+afficher des kWh : même valeur, divisée par 1000.
+
+**Compteurs de puissance (pinces).** Depuis le firmware 3.0 du RT2 (juin
+2022), une pince ampèremétrique ne se lit pas directement : le RT2 a 20
+« compteurs de puissance » (`Index_TORE1` à `Index_TORE20` dans l’API,
+« Compteur puissance 1 » à « 20 » dans sa page), et vous reliez chacun à l’une
+des 16 entrées de pince (4 sur le RT2, 12 sur une X-400 CT) avec un **mode**
+(consommation, production, soutiré, injecté, ou différentiel) et une unité de
+comptage (kWh par défaut, ou kVAh). L’API ne donne ni le mode ni l’unité :
+listez donc chaque compteur avec son mode dans « Compteurs de puissance »
+(`T1, T2:production`), et gardez kWh comme unité de comptage dans le RT2
+(Gladys n’a pas de kVAh : un compteur en kVAh serait publié comme des kWh).
+Un compteur en consommation devient un index d’énergie, en production un
+index de production, en injection un index d’injection (`grid-sensor`,
+`output-index`), en soutirage un index de soutirage (`input-index`) ; un
+compteur différentiel se liste avec le sens qu’il compte. L’index est lu en
+Wh (documentation GCE : « index en Wh » ; les valeurs vues sur trois vrais
+RT2 sont des milliers de kWh) et publié en kWh ; aucune comparaison avec la
+page d’un vrai RT2 encore : **comparez la première valeur publiée à la page
+« Compteurs de puissance »** et dites-nous. Un compteur qui compte mais n’est
+pas listé est nommé dans l’état ; un compteur listé qui lit 0 (pas encore
+relié à une pince, ou effacé) n’est pas publié ; un compteur dont vous
+changez le mode reçoit une nouvelle fonctionnalité, qui repart de la
+première valeur lue ; un compteur effacé dans le RT2 est une baisse, retenue
+jusqu’à vos deux clics. Un RT2 en firmware 2 (`Index_TORE_Cons1`…) n’est pas
+lu. Un compteur d’impulsions est lu dans l’unité que vous
 indiquez : comparez la première valeur publiée au compteur. Un compteur dont
 vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la
 première valeur lue. Si vous changez son **unité** après la publication de
@@ -322,8 +342,8 @@ y remet pas. Ils reviennent à la première lecture réussie.
 
 - Téléinformation (index, puissance apparente, intensité, période
   tarifaire), puissance instantanée des postes, compteurs d’impulsions,
-  relais, entrées, X-4FP et X-THL seulement (les index de pince attendent la
-  confirmation de leur unité) : la puissance instantanée d’une pince, les
+  compteurs de puissance des pinces, relais, entrées, X-4FP et X-THL
+  seulement : la puissance instantanée d’une pince, les
   sous-postes, les index par période (HC/HP, Tempo), les prix, les sorties
   virtuelles et EnOcean ne sont pas dans cette version.
 - Détail de la téléinformation : celui de `Get=TI` (une entrée de

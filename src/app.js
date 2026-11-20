@@ -73,7 +73,6 @@ import {
   FP_CODE,
   GUARD_LIMITS,
   KINDS,
-  UNIT_CONFIRMED,
   LIMITS,
   LIMITS_RT2,
   PROTECTIVE_MODES,
@@ -89,6 +88,7 @@ import {
   checkEnvelope,
   fixedCodes,
   indexKey,
+  indexNumber,
   kindOf,
   meterOf,
   numberOf,
@@ -260,7 +260,7 @@ export class Rt2App {
     /** Counters whose unit changed after their index was published: never published again. */
     this.unitChanged = new Set();
     /** Clamp indexes read above 0, not offered (unit to confirm). */
-    this.unconfirmedIndexes = 0;
+    this.unlistedClamps = [];
     /** The monotonic time of the last read an Eco-Devices RT2 answered (its product). */
     this.productAt = undefined;
     /** The first click of "Accept the held index": { at, listedAt, list, generation }. */
@@ -676,7 +676,7 @@ export class Rt2App {
     this.heldLogged.clear();
     this.pendingAccept = undefined;
     this.unitChanged.clear();
-    this.unconfirmedIndexes = 0;
+    this.unlistedClamps = [];
     this.productAt = undefined;
   }
 
@@ -722,6 +722,7 @@ export class Rt2App {
         if (code.startsWith('c')) this.unloadMeter(code);
       }
     }
+    // A power counter given another mode gets a new feature: meterGuard forgets the old one.
     if (this.dropUnlistedGuards()) {
       await this.saveMemory();
     }
@@ -1191,9 +1192,10 @@ export class Rt2App {
   }
 
   /**
-   * The meters of an `Index=all` answer: a teleinformation index or a clamp read above 0
-   * (the API answers them all, wired or not), a counter of the configuration, and any
-   * meter with a device created (unread: no value). `json` undefined: none read this time.
+   * The meters of an `Index=all` answer: a teleinformation index read above 0 (the API
+   * answers them all, wired or not), a power counter or a pulse counter of the configuration,
+   * and any meter with a device created (unread: no value). `json` undefined: none read this
+   * time. A power counter above 0 but not listed is noted for the status (`unlistedClamps`).
    */
   metersOf(json, at) {
     const created = new Set(
@@ -1207,21 +1209,19 @@ export class Rt2App {
     for (let n = 1; n <= LIMITS_RT2.ti; n += 1) codes.push(`ti${n}`);
     for (let n = 1; n <= LIMITS_RT2.tore; n += 1) codes.push(`tore${n}`);
     for (let n = 1; n <= LIMITS_RT2.counters; n += 1) codes.push(`c${n}`);
-    let unconfirmed = 0;
+    const unlisted = [];
     for (const code of codes) {
-      const counter = code.startsWith('c');
+      const listed = code.startsWith('c')
+        ? this.config.counters.has(code)
+        : code.startsWith('tore')
+          ? this.config.clamps.has(code)
+          : true;
       const raw = json ? Object.getOwnPropertyDescriptor(json, indexKey(code))?.value : undefined;
-      const meter = meterOf(code, raw, this.config.counters);
-      if (!counter && !UNIT_CONFIRMED[code.startsWith('ti') ? 'ti' : 'tore']) {
-        // The unit of the clamp indexes (Wh or kWh) is not confirmed on a real Eco-Devices:
-        // never offered nor published until it is (a factor 1000 corrected later would be a
-        // jump the core counts once). The teleinformation is (Wh, see UNIT_CONFIRMED).
-        if (meter?.value !== undefined) unconfirmed += 1;
-        continue;
-      }
-      const wanted = counter
-        ? this.config.counters.has(code) || created.has(code)
-        : (meter?.value !== undefined && json !== undefined) || created.has(code);
+      const meter = meterOf(code, raw, this.config.counters, this.config.clamps);
+      if (code.startsWith('tore') && !listed && indexNumber(raw) > 0) unlisted.push(code);
+      const wanted = code.startsWith('ti')
+        ? (meter?.value !== undefined && json !== undefined) || created.has(code)
+        : listed || created.has(code);
       if (!wanted) continue;
       out.push({
         code,
@@ -1232,7 +1232,7 @@ export class Rt2App {
         at,
       });
     }
-    if (json !== undefined) this.unconfirmedIndexes = unconfirmed;
+    if (json !== undefined) this.unlistedClamps = unlisted;
     return out;
   }
 
@@ -1354,6 +1354,9 @@ export class Rt2App {
     if (this.config.counterErrors.length > 0) {
       parts.push(T.counterErrors(listOf(this.config.counterErrors)));
     }
+    if (this.config.clampErrors.length > 0) {
+      parts.push(T.clampErrors(listOf(this.config.clampErrors)));
+    }
     if (this.round?.unread.length > 0) {
       parts.push(T.groupsUnread(this.round.unread));
     }
@@ -1390,7 +1393,9 @@ export class Rt2App {
     }
     const unknown = [...this.unknownZones].filter((code) => this.model.has(code)).sort();
     if (unknown.length > 0) parts.push(T.zonesNumeric(listOf(unknown.map(shownCode))));
-    if (this.unconfirmedIndexes > 0) parts.push(T.unitsUnconfirmed(this.unconfirmedIndexes));
+    if (this.unlistedClamps.length > 0) {
+      parts.push(T.clampsUnlisted(listOf(this.unlistedClamps.map(shownCode))));
+    }
     if (this.saveFailed || this.storeUnreadable) parts.push(T.storeProblem);
     return join(...parts);
   }
@@ -1751,7 +1756,7 @@ export class Rt2App {
         from: held.from,
         to: held.to,
         threshold: held.threshold,
-        unit: feature === F.ENERGY ? 'kWh' : 'm³',
+        unit: feature === F.WATER || feature === F.GAS ? 'm³' : 'kWh',
       });
     }
     return out;

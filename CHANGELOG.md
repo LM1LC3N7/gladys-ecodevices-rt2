@@ -10,6 +10,33 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- Power counters of the current clamps (`Index_TORE1` to `Index_TORE20`:
+  the 20 "compteurs de puissance" of firmware 3, each bound in the RT2 to a
+  clamp input with a mode), listed in the new field "Power counters" with
+  their mode (`T1, T2:production, T3:injection, T4:drawn`; no mode:
+  consumption): energy, production, injection (`grid-sensor/output-index`)
+  or drawn (`grid-sensor/input-index`) index in kWh, read in Wh (GCE wiki,
+  page Tore: "index en Wh"; the values of three real RT2 are thousands of
+  kWh), through the index guard (never 0, never lower, a drop held). The
+  API gives neither the mode nor the counting unit (kWh or kVAh): the docs
+  say to keep kWh and to compare the first value with the page of the RT2.
+  A counter counting but not listed is named in the status.
+- Pulse counters: the French words (`C1:eau:l`, `C2:gaz:m3`,
+  `C3:électricité:wh`) are understood; a counter not understood is said with
+  the form expected.
+
+### Changed
+
+- The clamps 17 to 20 are power counters of the RT2 like the others (no
+  longer taken for an X-400 CT left over), listable.
+- Tests on cce66's `Index=all` (2026-10-31) for the power counters, his
+  `status.json` (2026-11-14, after a factory reset: every power counter at
+  "--") and his "C1:Eau, C2".
+- Guard mutants: `scripts/mutants.mjs` and `scripts/mutants.json` (run by
+  hand, not by the CI).
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

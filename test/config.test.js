@@ -110,6 +110,7 @@ test('defaults, the slots, what restarts a session', () => {
     relays: 'R1',
     extensions: undefined,
     counters: undefined,
+    clamps: undefined,
     allow_heating_modes: undefined,
     poll_interval: 30,
     language: undefined,

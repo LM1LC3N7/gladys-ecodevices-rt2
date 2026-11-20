@@ -75,6 +75,9 @@ export const FEATURE_NAMES = {
   [F.ENERGY]: both('Energy index', 'Index d’énergie'),
   [F.WATER]: both('Water index', 'Index d’eau'),
   [F.GAS]: both('Gas index', 'Index de gaz'),
+  [F.PRODUCTION]: both('Production index', 'Index de production'),
+  [F.INJECTION]: both('Injection index', 'Index d’injection'),
+  [F.DRAWN]: both('Drawn index', 'Index de soutirage'),
   [F.APPARENT_POWER]: both('Apparent power', 'Puissance apparente'),
   [F.CURRENT]: both('Current', 'Intensité'),
   [F.TARIFF_PERIOD]: both('Tariff period', 'Période tarifaire'),
@@ -84,7 +87,7 @@ export const FEATURE_NAMES = {
 /** The code as the user types it: `R3`, `FP5`, `TORE2`. */
 export const shownCode = (code) => code.toUpperCase();
 
-/** The name of a target in Gladys: "Relay 3 (R3)", "Clamp 2 (TORE2)". */
+/** The name of a target in Gladys: "Relay 3 (R3)", "Power counter 2 (TORE2)". */
 export function targetName(target) {
   const code = shownCode(target.code);
   const n = target.n;
@@ -100,7 +103,7 @@ export function targetName(target) {
         return both(`Teleinfo index ${n} (${code})`, `Index téléinfo ${n} (${code})`);
       }
       if (target.code.startsWith('tore')) {
-        return both(`Clamp ${n} (${code})`, `Pince ${n} (${code})`);
+        return both(`Power counter ${n} (${code})`, `Compteur de puissance ${n} (${code})`);
       }
       return both(`Counter ${n} (${code})`, `Compteur ${n} (${code})`);
     case KINDS.TELEINFO:
@@ -224,7 +227,15 @@ export const T = {
   extensionErrors: (list) =>
     both(`Extensions not understood: ${list.en}.`, `Extensions non comprises : ${list.fr}.`),
   counterErrors: (list) =>
-    both(`Counters not understood: ${list.en}.`, `Compteurs non compris : ${list.fr}.`),
+    both(
+      `Pulse counters not understood (expected "C1:water:l", "C2:gas:m3", "C3:electricity:wh"): ${list.en}.`,
+      `Compteurs d’impulsions non compris (attendu « C1:eau:l », « C2:gaz:m3 », « C3:électricité:wh ») : ${list.fr}.`,
+    ),
+  clampErrors: (list) =>
+    both(
+      `Power counters not understood (expected "T1", "T2:production", "T3:injection", "T4:drawn"): ${list.en}.`,
+      `Compteurs de puissance non compris (attendu « T1 », « T2:production », « T3:injection », « T4:soutirage ») : ${list.fr}.`,
+    ),
   relaysReadOnly: (count) =>
     count === 1
       ? both(
@@ -282,10 +293,10 @@ export const T = {
       `Unit of a counter changed after its index was published, the index is no longer sent (its values would be 1000 times off): ${list.en}. Put the unit back, or delete the device and create it again (its history starts over).`,
       `Unité d’un compteur changée après la publication de son index, l’index n’est plus envoyé (ses valeurs seraient 1000 fois décalées) : ${list.fr}. Remettez l’unité, ou supprimez l’appareil et recréez-le (son historique repart de zéro).`,
     ),
-  unitsUnconfirmed: (count) =>
+  clampsUnlisted: (list) =>
     both(
-      `${count} clamp index(es) read but not offered: their unit (Wh or kWh) is not confirmed on a real Eco-Devices yet (see the guide).`,
-      `${count} index de pince lu(s) mais non proposé(s) : leur unité (Wh ou kWh) n’est pas encore confirmée sur un vrai Eco-Devices (voir le guide).`,
+      `Power counter(s) counting but not listed in Configuration → Power counters: ${list.en}. List them with their mode to bring them in.`,
+      `Compteur(s) de puissance qui comptent mais ne sont pas listés dans Configuration → Compteurs de puissance : ${list.fr}. Listez-les avec leur mode pour les amener.`,
     ),
   zonesNumeric: (list) =>
     both(

@@ -16,6 +16,7 @@
 
 import {
   API,
+  CLAMP_MODES,
   COUNTER_TYPES,
   FEATURES,
   FP_TEXT,
@@ -203,15 +204,22 @@ const round3 = (value) => Math.round(value * 1000) / 1000;
 /**
  * What a meter measures and the value published from the raw index:
  * `{ feature, value }` (value undefined when not a positive number).
- * Teleinformation and clamps: Wh read, kWh published (confirmed on a real
- * RT2 for the teleinformation only, see UNIT_CONFIRMED); counters: as configured.
+ * Teleinformation: Wh read, kWh published (confirmed on a real RT2, see
+ * UNIT_CONFIRMED); power counters (`tore`): Wh read, kWh published, the
+ * feature by the mode of the configuration (undefined when not listed);
+ * pulse counters: as configured (undefined when not listed).
  */
-export function meterOf(code, raw, counters) {
+export function meterOf(code, raw, counters, clamps) {
   const number = indexNumber(raw);
   let feature;
   let factor;
-  if (/^(ti|tore)\d/.test(code)) {
+  if (/^ti\d/.test(code)) {
     feature = FEATURES.ENERGY;
+    factor = UNIT_FACTORS.wh;
+  } else if (/^tore\d/.test(code)) {
+    const clamp = clamps?.get(code);
+    if (!clamp) return undefined;
+    feature = CLAMP_MODES[clamp.mode].feature;
     factor = UNIT_FACTORS.wh;
   } else {
     const counter = counters?.get(code);

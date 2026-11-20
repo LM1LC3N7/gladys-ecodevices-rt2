@@ -2,7 +2,7 @@
 // The targets of the Eco-Devices RT2 -> Gladys devices and states (pure).
 //
 // `ext:<selector>:<kind>:<code>`: one Gladys device per relay, digital input,
-// pilot-wire zone, X-THL and index (teleinformation, clamp, pulse counter),
+// pilot-wire zone, X-THL and index (teleinformation, power counter, pulse counter),
 // keyed by the code of the target (`r3`, `d5`, `fp5`, `thl1`, `ti1`,
 // `tore3`, `c2`: see src/config.js). The Eco-Devices n of the configuration
 // (n >= 2) puts `rt2<n>:` before the kind (`ext:<selector>:rt22:relay:r3`).
@@ -21,9 +21,13 @@
 // Pilot-wire zones: `heater/pilot-wire-mode` (Gladys numbers the modes 0 Off
 // to 5 Comfort); the heating modes are refused unless allowed (src/app.js).
 //
-// Indexes: `energy-sensor/index` in kWh (teleinformation, clamps, an
-// electricity counter), `volume-sensor/decimal` in m³ (a water or gas
-// counter: never an energy index), each through its guard (src/guard.js).
+// Indexes: `energy-sensor/index` in kWh (teleinformation, a power counter
+// in consumption mode, an electricity pulse counter), `volume-sensor/decimal`
+// in m³ (a water or gas counter: never an energy index); a power counter in
+// production mode `energy-production-sensor/index`, in injection mode
+// `grid-sensor/output-index`, in drawn mode `grid-sensor/input-index` (the
+// mode is the user's word: the API does not give it); each through its guard
+// (src/guard.js).
 //
 // Teleinformation details (`tic1`, `Get=TI`): `energy-sensor/power` in VA
 // (PAPP), `energy-sensor/current` in A (IINST), `text/text` (PTEC: the period
@@ -164,9 +168,22 @@ export function definitionOf(key) {
         keep_history: true,
       };
     case F.ENERGY:
+    case F.PRODUCTION:
+    case F.INJECTION:
+    case F.DRAWN:
       return {
-        category: C.ENERGY_SENSOR,
-        type: T.ENERGY_SENSOR.INDEX,
+        category: {
+          [F.ENERGY]: C.ENERGY_SENSOR,
+          [F.PRODUCTION]: C.ENERGY_PRODUCTION_SENSOR,
+          [F.INJECTION]: C.GRID_SENSOR,
+          [F.DRAWN]: C.GRID_SENSOR,
+        }[key],
+        type: {
+          [F.ENERGY]: T.ENERGY_SENSOR.INDEX,
+          [F.PRODUCTION]: T.ENERGY_PRODUCTION_SENSOR.INDEX,
+          [F.INJECTION]: T.GRID_SENSOR.OUTPUT_INDEX,
+          [F.DRAWN]: T.GRID_SENSOR.INPUT_INDEX,
+        }[key],
         unit: U.KILOWATT_HOUR,
         min: 0,
         max: INDEX_FEATURE_MAX,

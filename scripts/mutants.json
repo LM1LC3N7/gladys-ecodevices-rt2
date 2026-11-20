@@ -1,0 +1,56 @@
+[
+  {
+    "name": "meterOf: a power counter not listed is published anyway (consumption)",
+    "file": "src/rt2/model.js",
+    "from": "    const clamp = clamps?.get(code);\n    if (!clamp) return undefined;\n    feature = CLAMP_MODES[clamp.mode].feature;",
+    "to": "    const clamp = clamps?.get(code) ?? { mode: 'consumption' };\n    feature = CLAMP_MODES[clamp.mode].feature;"
+  },
+  {
+    "name": "meterOf: a power counter read in kWh (factor 1)",
+    "file": "src/rt2/model.js",
+    "from": "    feature = CLAMP_MODES[clamp.mode].feature;\n    factor = UNIT_FACTORS.wh;",
+    "to": "    feature = CLAMP_MODES[clamp.mode].feature;\n    factor = UNIT_FACTORS.kwh;"
+  },
+  {
+    "name": "meterOf: 0 published as an index",
+    "file": "src/rt2/model.js",
+    "from": "  const value = number !== undefined && number > 0 ? round3(number * factor) : undefined;",
+    "to": "  const value = number !== undefined ? round3(number * factor) : undefined;"
+  },
+  {
+    "name": "meterOf: the mode ignored (always consumption)",
+    "file": "src/rt2/model.js",
+    "from": "    feature = CLAMP_MODES[clamp.mode].feature;",
+    "to": "    feature = FEATURES.ENERGY;"
+  },
+  {
+    "name": "metersOf: every power counter taken for listed",
+    "file": "src/app.js",
+    "from": "          ? this.config.clamps.has(code)\n",
+    "to": "          ? true\n"
+  },
+  {
+    "name": "metersOf: the unlisted counters never said",
+    "file": "src/app.js",
+    "from": "      if (code.startsWith('tore') && !listed && indexNumber(raw) > 0) unlisted.push(code);",
+    "to": ""
+  },
+  {
+    "name": "parseClamps: T21 and beyond accepted",
+    "file": "src/config.js",
+    "from": "    if (!mode || n < 1 || n > LIMITS_RT2.tore || clamps.has(`tore${n}`)) {",
+    "to": "    if (!mode || n < 1 || clamps.has(`tore${n}`)) {"
+  },
+  {
+    "name": "parseClamps: an unknown mode taken for consumption",
+    "file": "src/config.js",
+    "from": "        : Object.keys(CLAMP_MODES).find((m) => CLAMP_MODES[m].aliases.includes(match[2]))",
+    "to": "        : (Object.keys(CLAMP_MODES).find((m) => CLAMP_MODES[m].aliases.includes(match[2])) ?? 'consumption')"
+  },
+  {
+    "name": "parseCounters: the French words refused",
+    "file": "src/config.js",
+    "from": "  Object.keys(COUNTER_ALIASES).find((type) => COUNTER_ALIASES[type].includes(word));",
+    "to": "  Object.keys(COUNTER_ALIASES).find((type) => type === word);"
+  }
+]

@@ -1,8 +1,8 @@
 // -----------------------------------------------------------------------------
 // The indexes end to end: pulse counters as configured (electricity read in
 // Wh, published in kWh; water; gas), teleinformation in kWh (Wh read,
-// confirmed on a real RT2), clamps never offered while their unit is not
-// confirmed, each through its guard: never 0, never lower, a jump or a
+// confirmed on a real RT2), power counters (clamps) only when listed with a
+// mode (Wh read, kWh published), each through its guard: never 0, never lower, a jump or a
 // drop held until two clicks of "Accept the held index", kept in /data with
 // the device it belongs to, dated on the session clock.
 // -----------------------------------------------------------------------------
@@ -277,7 +277,7 @@ test('another box at the configured address: no index published onto its devices
   app.stop();
 });
 
-test('teleinformation published in kWh (Wh read); clamps neither offered nor published while their unit is unconfirmed', async () => {
+test('teleinformation published in kWh (Wh read); a power counter neither offered nor published unless listed', async () => {
   const world = fakeRt2();
   world.TORE[17] = 1_846_258;
   const devices = [meter('ti1'), meter('tore1'), meter('tore17')];
@@ -285,14 +285,18 @@ test('teleinformation published in kWh (Wh read); clamps neither offered nor pub
   await start();
   await wait(15 * SECOND);
   const ids = gladys.fake.discoveredDevices.map((d) => d.external_id);
-  assert.ok(!ids.some((id) => /meter:tore/.test(id)), ids.join(' '));
+  // Created, not listed: kept in the list (the user's), without any value.
+  assert.ok(ids.includes('ext:rt2:meter:tore1'), ids.join(' '));
+  assert.ok(!ids.includes('ext:rt2:meter:tore2'), 'not listed, not created: not offered');
   assert.ok(ids.includes('ext:rt2:meter:ti2'), ids.join(' '));
   assert.equal(gladys.fake.lastState(F('meter', 'ti1', 'energy-index')), 12345.678);
   assert.equal(gladys.fake.lastState(F('meter', 'tore1', 'energy-index')), undefined);
   assert.equal(gladys.fake.lastState(F('meter', 'tore17', 'energy-index')), undefined);
-  // TORE17 is never read (the RT2 has 16 clamps; beyond, an X400 CT left over, cce66).
-  assert.match(message(gladys), /\. 1 clamp index\(es\) read but not offered/);
-  assert.match(message(gladys, 'fr'), /leur unité \(Wh ou kWh\) n’est pas encore confirmée/);
+  assert.match(message(gladys), /not listed [^:]+: TORE1, TORE17\./);
+  assert.match(
+    message(gladys, 'fr'),
+    /Compteur\(s\) de puissance qui comptent mais ne sont pas listés/,
+  );
   app.stop();
 });
 

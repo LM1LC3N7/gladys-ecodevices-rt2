@@ -43,6 +43,10 @@ to date at the end of every milestone.
 
 ## Questions pour cce66
 
+Open (2026-11-20): the power counters (see "Decisions, power counters"):
+once his are bound to his clamps, `Index=all` and the "Compteurs de
+puissance" page at the same time (unit check of question 1).
+
 Open (milestone 2, 2026-11-19): a post with a clamp: the value of `Get=P`
 (`INSTANT_POSTE<n>`) and the one of the page of the RT2 at the same time
 (the unit W is only the default of the Home Assistant integration; all his
@@ -364,3 +368,36 @@ Still open, to ask on the forum (short, in French):
   post (a real value); a post not listed is never offered, since a post
   without clamps reads 0 as well.
 - [ ] r2 mineurs (0.2.0) : test « groupe bloqué derrière des commandes = non lu », test « coupure par commande protectrice jette la tournée ».
+
+## Decisions, power counters (2026-11-20, from cce66's #23 and the web)
+
+- **What `Index_TORE<n>` is on firmware 3** (GCE forum 15493, release notes
+  of 2022-06-16; Jeedom 87420; cce66's status.json `ioname50`..`519`
+  "Compteur puissance 1".."20", `indexcourant50`..`519`): one of the 20
+  "compteurs de puissance", each bound by the user to one of the 16 clamp
+  inputs (4 on the RT2, 12 on an X-400 CT) with a mode (consommation,
+  production, soutiré, injecté, différentiel) and a counting unit (kWh by
+  default, kVAh). Not a physical clamp: `LIMITS_RT2.tore` is 20, and the
+  "X400 CT left over" reading of 0.1.3 was wrong (TORE17-20 are counters of
+  the RT2). Firmware 2 answered `Index_TORE_Cons1-4`, `Index_TORE_Dist1-4`,
+  `Index_TORE5-16`: not read (no firmware 2 seen).
+- **Unit: Wh** (`UNIT_CONFIRMED.tore` true): the GCE wiki, page Tore, says
+  the clamp current becomes a power "puis en consommation à proprement
+  parlé (index en Wh)"; the firmware 3 counting unit is kWh with integer API
+  values of millions on three real RT2 (cce66 1,654,075; loic69 5,248,601;
+  Chris_eco 1,433,755): Wh. Not yet compared with the page of a real RT2
+  (question 1 stays, now "compare the first value with the page").
+- **Opt-in with the mode** (`clamps` field, `T1, T2:production`): the API
+  gives neither the mode nor the unit; the fiche forbids an injection or a
+  production index under `energy-sensor/index`. Consumption
+  `energy-sensor/index`, production `energy-production-sensor/index`,
+  injection `grid-sensor/output-index`, drawn `grid-sensor/input-index`
+  (the ED3 module's mapping). kVAh: documented only (keep kWh).
+- **cce66's "pas de remontée de tores"**: two causes. The integration never
+  offered the clamps (unit unconfirmed), and after his factory reset of
+  November every power counter of his RT2 reads "--" (status.json #19): he
+  has to bind them to his clamps in the page "Compteurs de puissance" of
+  the RT2, then list them in Gladys. "C1:Eau, C2": French words now
+  understood; `C2` has no type (still not understood, the status says the
+  form expected).
+- Mutants: `scripts/mutants.mjs` + `scripts/mutants.json` (10, all killed).

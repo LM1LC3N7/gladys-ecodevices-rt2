@@ -10,7 +10,15 @@
 
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
-import { API, COUNTER_TYPES, LIMITS_RT2, POLL_INTERVAL, RELAY_KINDS } from './constants.js';
+import {
+  API,
+  CLAMP_MODES,
+  COUNTER_ALIASES,
+  COUNTER_TYPES,
+  LIMITS_RT2,
+  POLL_INTERVAL,
+  RELAY_KINDS,
+} from './constants.js';
 
 /** Defaults, mirrored by the manifest (checked by test/manifest.test.js). */
 export const DEFAULTS = {
@@ -166,21 +174,35 @@ export function parseExtensions(raw) {
   return { codes, errors: errors.slice(0, 10) };
 }
 
+/** Lower case, no accent, no space, `m³` as `m3`: what the user typed, compared. */
+const plain = (entry) =>
+  entry
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace('m³', 'm3');
+
+/** The counter type of a word of the configuration (`water`, `eau`, `gaz`...), else undefined. */
+const counterTypeOf = (word) =>
+  Object.keys(COUNTER_ALIASES).find((type) => COUNTER_ALIASES[type].includes(word));
+
 /**
  * The pulse counters to publish and what they measure: `C1:water:l,
  * C2:gas:m3, C3:electricity:wh` -> Map(code -> { type, unit }); the unit is
  * the one of the Eco-Devices index (the first of the type when not given).
+ * French words are taken too (`C1:eau`, `C2:gaz:m3`, `C3:électricité`).
  */
 export function parseCounters(raw) {
   const counters = new Map();
   const errors = [];
   for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
-    const text = entry.trim().toLowerCase().replace(/\s+/g, '').replace('m³', 'm3');
+    const text = plain(entry);
     if (text === '') continue;
     const match = /^c(\d{1,2})[:=]([a-z]+)(?::([a-z0-9]+))?$/.exec(text);
     const n = Number(match?.[1]);
-    const type =
-      match && Object.hasOwn(COUNTER_TYPES, match[2]) ? COUNTER_TYPES[match[2]] : undefined;
+    const typeName = match ? counterTypeOf(match[2]) : undefined;
+    const type = typeName ? COUNTER_TYPES[typeName] : undefined;
     const unit = match?.[3] ?? type?.units[0];
     if (
       !type ||
@@ -192,9 +214,37 @@ export function parseCounters(raw) {
       errors.push(entry.trim().slice(0, 24));
       continue;
     }
-    counters.set(`c${n}`, { type: match[2], unit });
+    counters.set(`c${n}`, { type: typeName, unit });
   }
   return { counters, errors: errors.slice(0, 10) };
+}
+
+/**
+ * The power counters (`Index_TORE<n>`, "compteurs de puissance" of the RT2) to
+ * publish and their mode: `T1, T2:production, T3:injection, T4:drawn` ->
+ * Map(code -> { mode }); `T1` alone is consumption; `TORE1` is `T1`. The
+ * API does not give the mode: it is the user's word (see CLAMP_MODES).
+ */
+export function parseClamps(raw) {
+  const clamps = new Map();
+  const errors = [];
+  for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
+    const text = plain(entry);
+    if (text === '') continue;
+    const match = /^(?:t|tore)(\d{1,2})(?:[:=]([a-z]+))?$/.exec(text);
+    const n = Number(match?.[1]);
+    const mode = match
+      ? match[2] === undefined
+        ? 'consumption'
+        : Object.keys(CLAMP_MODES).find((m) => CLAMP_MODES[m].aliases.includes(match[2]))
+      : undefined;
+    if (!mode || n < 1 || n > LIMITS_RT2.tore || clamps.has(`tore${n}`)) {
+      errors.push(entry.trim().slice(0, 24));
+      continue;
+    }
+    clamps.set(`tore${n}`, { mode });
+  }
+  return { clamps, errors: errors.slice(0, 10) };
 }
 
 const number = (value) =>
@@ -222,6 +272,7 @@ export function normalizeConfig(raw = {}) {
   const relays = parseRelays(raw?.relays);
   const extensions = parseExtensions(raw?.extensions);
   const counters = parseCounters(raw?.counters);
+  const clamps = parseClamps(raw?.clamps);
   const language = String(raw?.language ?? DEFAULTS.language)
     .trim()
     .toLowerCase();
@@ -238,6 +289,8 @@ export function normalizeConfig(raw = {}) {
     extensionErrors: extensions.errors,
     counters: counters.counters,
     counterErrors: counters.errors,
+    clamps: clamps.clamps,
+    clampErrors: clamps.errors,
     allowHeatingModes: flag(raw?.allow_heating_modes, DEFAULTS.allow_heating_modes),
     // Set by src/hub.js: the address of an earlier slot (one box, one lane of requests).
     duplicateOf: Number.isInteger(raw?.duplicate_of) ? raw.duplicate_of : undefined,
@@ -249,13 +302,13 @@ export function normalizeConfig(raw = {}) {
 /**
  * Up to SLOTS Eco-Devices RT2 in one integration (Gladys runs one instance
  * of it). The first one has the manifest keys `host`, `port`, `api_key`,
- * `relays`, `extensions`, `counters`; the n-th one has them with `_<n>`
+ * `relays`, `extensions`, `counters`, `clamps`; the n-th one has them with `_<n>`
  * (`host_2`...), its port in the address (`192.168.1.51:8080`). The poll
  * interval, the heating option and the language are shared.
  */
 export const SLOTS = 3;
 
-const SLOT_KEYS = ['host', 'api_key', 'relays', 'extensions', 'counters'];
+const SLOT_KEYS = ['host', 'api_key', 'relays', 'extensions', 'counters', 'clamps'];
 const SHARED_KEYS = ['allow_heating_modes', 'poll_interval', 'language'];
 
 /** The configuration of one slot, in the shape of the first one (for normalizeConfig). */

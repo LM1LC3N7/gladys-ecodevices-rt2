@@ -20,8 +20,10 @@
 //     (0 for a post without clamp too), in W (the unit of the Home Assistant
 //     integration; not given by GCE);
 //   - `Index=all`: the indexes, `Index_TI<n>` (teleinformation),
-//     `Index_TORE<n>` (current clamps 1-16; cce66's RT2 also
-//     answers 17-20, an X400 CT extension once wired, frozen there), `Index_C<n>`
+//     `Index_TORE<n>` (firmware 3: the 20 "compteurs de puissance", the power
+//     counters, each bound in the RT2 to one of the 16 clamp inputs with a
+//     mode and a counting unit; firmware 2 answered `Index_TORE_Cons1-4`,
+//     `Index_TORE_Dist1-4`, `Index_TORE5-16` instead: not read), `Index_C<n>`
 //     (pulse counters); 4294967295 (0xFFFFFFFF) is an entry with nothing
 //     behind it (TI3 to TI7 on cce66's RT2), never an index;
 //   - `SetR=01` / `ClearR=01` switch a relay on / off (01 to 10);
@@ -111,6 +113,10 @@ export const FEATURES = {
   ENERGY: 'energy-index',
   WATER: 'water-index',
   GAS: 'gas-index',
+  /** A power counter in production, injection or drawn mode (consumption: ENERGY). */
+  PRODUCTION: 'production-index',
+  INJECTION: 'injection-index',
+  DRAWN: 'drawn-index',
   /** Teleinformation details (`Get=TI`). */
   APPARENT_POWER: 'apparent-power',
   CURRENT: 'current',
@@ -149,8 +155,34 @@ export const COUNTER_TYPES = {
   water: { units: ['l', 'm3'], feature: FEATURES.WATER },
   gas: { units: ['m3', 'l'], feature: FEATURES.GAS },
 };
+/** The words of the configuration taken for a counter type (French and English, no accent). */
+export const COUNTER_ALIASES = {
+  water: ['water', 'eau'],
+  gas: ['gas', 'gaz'],
+  electricity: ['electricity', 'electricite', 'elec', 'electric', 'energy', 'energie'],
+};
 /** Published units per unit read. */
 export const UNIT_FACTORS = { wh: 0.001, kwh: 1, l: 0.001, m3: 1 };
+
+/**
+ * The modes of a power counter (`Index_TORE<n>`, firmware 3.0: "choix du mode
+ * consommation, production, soutiré, injecté", GCE release notes of
+ * 2022-06-16), which the API does not give: the user says it (`T1`,
+ * `T3:production`). Consumption: `energy-sensor/index`; production:
+ * `energy-production-sensor/index`; injection (injecté): `grid-sensor/
+ * output-index`; drawn (soutiré): `grid-sensor/input-index`. All in kWh, read
+ * in Wh. The RT2 also offers kVAh as a counting unit: Gladys has no such
+ * unit, the docs say to keep kWh (the default).
+ */
+export const CLAMP_MODES = {
+  consumption: { feature: FEATURES.ENERGY, aliases: ['consumption', 'conso', 'consommation'] },
+  production: { feature: FEATURES.PRODUCTION, aliases: ['production', 'prod'] },
+  injection: {
+    feature: FEATURES.INJECTION,
+    aliases: ['injection', 'injecte', 'injected', 'export'],
+  },
+  drawn: { feature: FEATURES.DRAWN, aliases: ['drawn', 'soutire', 'soutirage', 'import'] },
+};
 
 export const ACTIONS = {
   TEST_CONNECTION: 'test_connection',
@@ -164,11 +196,13 @@ export const POLL_INTERVAL = { min: 5, max: 300, default: 15 };
 /**
  * Sizes of the Eco-Devices RT2 (the API answers them all, wired or not):
  * relays 2 + 8 (X-8R), inputs 12, pilot-wire zones 8 (two X-4FP: `SetFP01`
- * to `SetFP08`), 2 X-THL, 7 teleinformation indexes, 16 clamps, 12 counters.
- * Clamps: 16 in the GCE PDF of 2017 (`Index=T`, "les 16 tores"); a real RT2
- * also answers `Index_TORE17` to `Index_TORE20` and beyond, but there they are
- * what is left of an X400 CT extension once wired (cce66, 2026-11-02: frozen
- * values), never clamps of the RT2: not read at all.
+ * to `SetFP08`), 2 X-THL, 7 teleinformation indexes, 20 power counters, 12
+ * pulse counters. Power counters (`tore`): 16 in the GCE PDF of 2017
+ * (`Index=T`, "les 16 tores", the clamp inputs: 4 of the RT2, 12 of an X-400
+ * CT); firmware 3.0 (2022-06-16) made them 20 "compteurs de puissance", each
+ * bound to one of the 16 inputs ("Compteur puissance 1".."20" and
+ * `indexcourant50`..`519` in cce66's status.json, firmware 3.00.04; his
+ * `Index=all` answers `Index_TORE1`..`20`).
  */
 export const LIMITS_RT2 = {
   relays: 10,
@@ -177,7 +211,7 @@ export const LIMITS_RT2 = {
   zones: 8,
   thl: 2,
   ti: 7,
-  tore: 16,
+  tore: 20,
   counters: 12,
   /** One teleinformation answered by `Get=TI`. */
   tic: 1,
@@ -197,17 +231,24 @@ export const RANGES = {
 };
 
 /**
- * The units confirmed on a real Eco-Devices RT2 (cce66, 2026-10-31).
- * Teleinformation: Wh. `Index_TI1` read 132,533,718 on his RT2 and the
- * teleinformation index of his Eco-Devices 3 on the same Linky 132,533,861
- * (Wh, the unit of the ED3) minutes apart: the same meter, 143 Wh apart; in
- * kWh it would be 132 GWh, not a home. Clamps: not confirmed. `Index_TORE<n>`
- * is the energy counted on clamp n (cce66), but no source gives its unit (the
- * GCE PDF, pyecodevices_rt2 and the Home Assistant integration give none) and
- * the page of the Eco-Devices only shows the instant power of a clamp, so the
- * index cannot be compared with it: neither offered nor published.
+ * The units of the indexes read in Wh.
+ * Teleinformation: confirmed on a real RT2 (cce66, 2026-10-31). `Index_TI1`
+ * read 132,533,718 on his RT2 and the teleinformation index of his
+ * Eco-Devices 3 on the same Linky 132,533,861 (Wh, the unit of the ED3)
+ * minutes apart: the same meter, 143 Wh apart; in kWh it would be 132 GWh,
+ * not a home.
+ * Power counters: Wh by the manufacturer's documentation (GCE wiki
+ * "EcoDevice RT2", page Tore: the clamp gives a current, turned into a power,
+ * "puis en consommation à proprement parlé (index en Wh)"; firmware 3.0
+ * release notes: counting unit kWh by default, or kVAh) and by the size of
+ * the values on three real RT2 (cce66 2026-10-31: `Index_TORE3` 1,654,075;
+ * loic69, Jeedom community 87420, 2022-07-21: `Index_TORE1` 5,248,601;
+ * Chris_eco, GCE forum 15493, 2022-06-17: 1,433,755: thousands of kWh,
+ * homes; in kWh they would be gigawatt-hours). Not compared with the page of
+ * a real RT2 yet (it shows the instant power of a clamp): the docs say to
+ * compare the first value published.
  */
-export const UNIT_CONFIRMED = { ti: true, tore: false };
+export const UNIT_CONFIRMED = { ti: true, tore: true };
 
 /** An entry of `Index=all` with nothing behind it (0xFFFFFFFF): never an index. */
 export const INDEX_ABSENT = 4_294_967_295;
@@ -221,6 +262,9 @@ export const INDEX_FEATURE_MAX = 1e10;
 export const GUARD_LIMITS = {
   /** Electricity (kWh): a home never draws more than 100 kW on average, 0.5 kWh slack. */
   [FEATURES.ENERGY]: { maxKw: 100, slackKwh: 0.5 },
+  [FEATURES.PRODUCTION]: { maxKw: 100, slackKwh: 0.5 },
+  [FEATURES.INJECTION]: { maxKw: 100, slackKwh: 0.5 },
+  [FEATURES.DRAWN]: { maxKw: 100, slackKwh: 0.5 },
   /** Water (m³): 10 m³/h at most (a home meter gives 2.5 to 4), 0.05 m³ slack. */
   [FEATURES.WATER]: { maxKw: 10, slackKwh: 0.05 },
   /** Gas (m³): 16 m³/h at most (a G4 meter gives 6, a G10 16), 0.05 m³ slack. */

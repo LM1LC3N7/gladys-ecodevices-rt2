@@ -2,8 +2,9 @@
 
 Brings **up to three GCE Electronics Eco-Devices RT2** into Gladys through
 their local JSON API: the indexes of the teleinformation and of the pulse
-counters (water, gas, electricity; current clamps once their unit is
-confirmed), their relays,
+counters (water, gas, electricity) and of the power counters of the current
+clamps (consumption, production, injection or drawn: your word), their
+relays,
 their inputs, the pilot-wire zones of their X-4FP extensions and their X-THL
 sensors (temperature, humidity, luminosity).
 
@@ -30,7 +31,11 @@ sensors (temperature, humidity, luminosity).
      `FP1-FP4, THL1, TIC, P1-P2`);
    - list in "Pulse counters" those to bring in, with what they measure and
      the unit of their index in the Eco-Devices (e.g.
-     `C1:water:l, C2:gas:m3`).
+     `C1:water:l, C2:gas:m3`; the French words `eau`, `gaz`, `électricité`
+     work too);
+   - list in "Power counters" those to bring in, with the mode you gave them
+     in the "Compteurs de puissance" page of the RT2 (e.g.
+     `T1, T2:production, T3:injection, T4:drawn`; no mode: consumption).
 
    Then save.
 
@@ -74,7 +79,7 @@ value.
 | On the Eco-Devices RT2                 | In Gladys                                                        | Code (in the name) |
 | -------------------------------------- | ---------------------------------------------------------------- | ------------------ |
 | Teleinformation index 1 to 7           | energy index (kWh)                                               | `TI1`              |
-| Current clamp 1 to 16                  | not yet (see "Units" below)                                      | `TORE3`            |
+| Power counter 1 to 20 (when listed)    | energy, production, injection or drawn index (kWh)               | `TORE3`            |
 | Pulse counter 1 to 12 (when listed)    | water or gas index (m³), or energy index (kWh)                   | `C1`               |
 | Relay 1 to 10 (2 + an X-8R)            | read only, or a switch / light when you list it                  | `R3`               |
 | Input 1 to 12                          | a binary input (read only)                                       | `D3`               |
@@ -141,16 +146,30 @@ a guard.
 **Units.** The teleinformation indexes are read in Wh and published in kWh:
 confirmed on a real RT2, whose TI1 matched, within 143 Wh, the index an
 Eco-Devices 3 (Wh) read on the same meter. Its own page may show kWh: same
-value, divided by 1000. A clamp index (`Index_TORE<n>`) is the energy
-counted on that clamp, but its unit (Wh or kWh) is given by no source and
-cannot be compared with the page of the Eco-Devices (which shows only the
-instant power of a clamp); a factor of 1000 corrected later would be a jump
-counted once as consumption: the clamps are therefore **neither offered nor
-published** until it is; the status says how many were read. Only clamps 1
-to 16 are read: the RT2 of the tester also answers `Index_TORE17` and
-beyond, what is left there of an X400 CT extension once wired (frozen
-values), never offered. With an X400 CT wired today they would be real
-clamps: to be looked at again once the unit of a clamp is confirmed. A pulse counter
+value, divided by 1000.
+
+**Power counters (clamps).** Since firmware 3.0 of the RT2 (June 2022) a
+current clamp is not read as such: the RT2 has 20 "power counters"
+(`Index_TORE1` to `Index_TORE20` in the API, "Compteur puissance 1" to "20"
+on its page), and you bind each one to one of the 16 clamp inputs (4 on the
+RT2, 12 on an X-400 CT) with a **mode** (consumption, production, drawn,
+injected, or differential) and a counting unit (kWh by default, or kVAh).
+The API gives neither the mode nor the unit: list each counter with its mode
+in "Power counters" (`T1, T2:production`), and keep kWh as the counting unit
+in the RT2 (Gladys has no kVAh: a counter in kVAh would be published as
+kWh). A counter in consumption becomes an energy index, in production a
+production index, in injection an injection index (`grid-sensor`,
+`output-index`), in drawn mode a drawn index (`input-index`); a differential
+counter is listed with the direction it counts. The index is read in Wh (GCE
+documentation: "index en Wh"; the values seen on three real RT2 are
+thousands of kWh) and published in kWh; not compared with the page of a real
+RT2 yet: **compare the first value published with the "Compteurs de
+puissance" page** and tell us. A counter counting but not listed is named in
+the status; a listed counter reading 0 (not bound to a clamp yet, or erased)
+is not published; a counter whose mode you change gets a new feature, which
+starts from the first value read; a counter erased in the RT2 is a drop,
+held until your two clicks. An RT2 on firmware 2 (`Index_TORE_Cons1`…) is
+not read. A pulse counter
 is read in the unit you give: compare the first value published with the
 meter. A counter whose **type** you change gets a new feature, which starts
 from the first value read. If you change its **unit** after its index was
@@ -300,7 +319,7 @@ that succeeds.
 
 - Teleinformation (index, apparent power, current, tariff period), the
   instant power of the posts, pulse counters, relays, inputs, X-4FP and
-  X-THL only (the clamp indexes wait for their unit to be confirmed): the
+  X-THL, power counters of the clamps only: the
   instant power of a clamp, the sub-posts, the indexes per tariff period
   (HC/HP, Tempo), the prices, the virtual outputs and EnOcean are not in this
   version.

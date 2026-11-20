@@ -6,9 +6,9 @@
 //   never an index (never offered, published, nor held as a jump);
 // - the teleinformation index is in Wh (TI1 = the index of his Eco-Devices 3
 //   on the same Linky, 143 Wh apart): offered and published in kWh;
-// - the clamps are 1 to 16; `Index_TORE17` and beyond are what is left of an
-//   X400 CT extension once wired (cce66, post 9: frozen values), never read;
-//   the unit of a clamp index is still unconfirmed;
+// - `Index_TORE1`..`20` are the 20 power counters of firmware 3 ("Compteur
+//   puissance 1".."20" in his status.json), each bound in the RT2 to a clamp
+//   input: read in Wh (GCE wiki), published in kWh only when listed with a mode;
 // - `Get=FP` answers numbers (0), not mode texts: never published as a mode,
 //   Eco and Comfort refused there (from the first answer, read backs and
 //   restarts included), Off and Frost protection still sent.
@@ -120,7 +120,7 @@ test('his answers: the envelope is an Eco-Devices RT2 one, nothing to relax', ()
     assert.deepEqual(checkEnvelope(json), { ok: true });
 });
 
-test('his answers, read: 4294967295 is no index; TORE16 is the last clamp; FP 0 is no mode', () => {
+test('his answers, read: 4294967295 is no index; TORE20 is the last power counter; FP 0 is no mode', () => {
   assert.equal(indexNumber(4294967295), undefined);
   assert.equal(indexNumber('4294967295'), undefined);
   assert.equal(indexNumber(4294967294), 4294967294, 'only that one value');
@@ -129,18 +129,20 @@ test('his answers, read: 4294967295 is no index; TORE16 is the last clamp; FP 0 
   }
   assert.equal(meterOf('ti1', INDEX_ALL.Index_TI1).value, 132533.718, 'Wh read, kWh published');
   assert.equal(kindOf('tore16'), 'meter');
-  for (const code of ['tore17', 'tore18', 'tore20', 'tore21']) {
-    assert.equal(kindOf(code), undefined, `${code}: the X400 CT left over, not a clamp`);
-  }
-  assert.equal(indexKey('tore16'), 'Index_TORE16');
-  assert.deepEqual(UNIT_CONFIRMED, { ti: true, tore: false });
+  assert.equal(kindOf('tore20'), 'meter', 'firmware 3: 20 power counters');
+  assert.equal(kindOf('tore21'), undefined);
+  assert.equal(indexKey('tore20'), 'Index_TORE20');
+  assert.deepEqual(UNIT_CONFIRMED, { ti: true, tore: true });
+  const clamps = new Map([['tore3', { mode: 'consumption' }]]);
+  assert.equal(meterOf('tore3', INDEX_ALL.Index_TORE3, undefined, clamps).value, 1654.075);
+  assert.equal(meterOf('tore3', INDEX_ALL.Index_TORE3), undefined, 'not listed: nothing');
   for (let n = 1; n <= 8; n += 1) {
     assert.equal(zoneIsNumber(GET_FP, n), true);
     assert.equal(valueOf(GET_FP, 'pilot-wire', n), undefined, `FP${n}: 0 is never Comfort`);
   }
 });
 
-test('his RT2: 10 relays, 12 inputs, TI1 offered and published in kWh, TI2 to TI7 and the clamps not', async () => {
+test('his RT2: 10 relays, 12 inputs, TI1 offered and published in kWh, TI2 to TI7 and the unlisted power counters not', async () => {
   const devices = [meter('ti1'), meter('ti3')];
   const { app, gladys, start, wait, states } = await setup({ world: hisRt2(), devices });
   await start();
@@ -150,9 +152,12 @@ test('his RT2: 10 relays, 12 inputs, TI1 offered and published in kWh, TI2 to TI
   const ids = gladys.fake.discoveredDevices.map((d) => d.external_id);
   assert.ok(ids.includes('ext:rt2:meter:ti1'), ids.join(' '));
   for (const n of [2, 4, 5, 6, 7]) assert.ok(!ids.includes(`ext:rt2:meter:ti${n}`), `TI${n}`);
-  assert.ok(!ids.some((id) => /meter:tore/.test(id)), 'clamps: unit not confirmed');
-  // TORE1, 2, 3: read, counted, not offered; TORE17, 18, 20 (X400 CT left over): not even read.
-  assert.match(message(gladys), /\. 3 clamp index\(es\) read but not offered/);
+  assert.ok(!ids.some((id) => /meter:tore/.test(id)), 'power counters: none listed');
+  // TORE1, 2, 3, 17, 18, 20 count: said, so that he knows what to list.
+  assert.match(
+    message(gladys),
+    /Power counter\(s\) counting but not listed [^:]+: TORE1, TORE2, TORE3, TORE17, TORE18 and 1 more\./,
+  );
   assert.equal(gladys.fake.lastState(TI(1)), 132533.718);
   assert.deepEqual(states(TI(3)), [], 'an absent entry is never published');
   assert.doesNotMatch(message(gladys), /held back/);

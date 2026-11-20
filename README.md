@@ -3,7 +3,7 @@
 [Gladys Assistant](https://gladysassistant.com) integration for the **GCE
 Electronics Eco-Devices RT2** (up to three in one installation), through its
 local JSON API: indexes of the teleinformation and of the pulse counters
-(clamps once their unit is confirmed), relays (read only unless you list them), digital inputs,
+and of the power counters of the clamps you list (with their mode), relays (read only unless you list them), digital inputs,
 pilot-wire zones of the X-4FP, X-THL sensors, the teleinformation details
 (apparent power, current, tariff period) and the instant power of the posts.
 

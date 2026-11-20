@@ -82,7 +82,22 @@ test('indexes: numbers or plain decimal texts, never 0 published; units', () => 
     value: 12345.678,
     raw: 12_345_678,
   });
-  assert.equal(meterOf('tore2', 0).value, undefined, '0 is no index');
+  assert.equal(meterOf('tore2', 5), undefined, 'a power counter not listed');
+  const clamps = new Map([
+    ['tore2', { mode: 'consumption' }],
+    ['tore3', { mode: 'production' }],
+    ['tore4', { mode: 'injection' }],
+    ['tore5', { mode: 'drawn' }],
+  ]);
+  assert.equal(meterOf('tore2', 0, undefined, clamps).value, undefined, '0 is no index');
+  assert.deepEqual(meterOf('tore2', 271_232, undefined, clamps), {
+    feature: 'energy-index',
+    value: 271.232,
+    raw: 271_232,
+  });
+  assert.equal(meterOf('tore3', 1, undefined, clamps).feature, 'production-index');
+  assert.equal(meterOf('tore4', 1, undefined, clamps).feature, 'injection-index');
+  assert.equal(meterOf('tore5', 1, undefined, clamps).feature, 'drawn-index');
   assert.equal(meterOf('c1', 5), undefined, 'a counter not configured');
   const counters = new Map([
     ['c1', { type: 'water', unit: 'l' }],

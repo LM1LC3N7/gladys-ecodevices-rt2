@@ -21,8 +21,8 @@
         "fr": "Votre Eco-Devices RT2"
       },
       "description": {
-        "en": "Brings up to three GCE Electronics Eco-Devices RT2 into Gladys through their local JSON API: the indexes of the teleinformation and of the pulse counters (never 0; a drop or a jump held back until you accept it; clamps once their unit is confirmed), relays (read only unless you list them below), digital inputs, pilot-wire zones of the X-4FP, X-THL sensors, the teleinformation details and the instant power of the posts. Pilot wire: Off and Frost protection go first, without any option (see the guide for their limits); Eco and Comfort only once allowed below. Each Eco-Devices keeps its own devices: a box at another address, or another GCE product, never gets their commands. Never tested with a real device. Not affiliated with GCE Electronics.",
-        "fr": "Amène dans Gladys jusqu’à trois Eco-Devices RT2 de GCE Electronics par leur API JSON locale : les index de la téléinformation et des compteurs d’impulsions (jamais 0 ; une baisse ou un saut retenu jusqu’à ce que vous l’acceptiez ; pinces une fois leur unité confirmée), relais (en lecture seule sauf ceux listés ci-dessous), entrées, zones de fil pilote des X-4FP, capteurs X-THL, détail de la téléinformation et puissance instantanée des postes. Fil pilote : Arrêt et Hors-gel passent en premier, sans option (limites dans le guide) ; Éco et Confort seulement une fois autorisés ci-dessous. Chaque Eco-Devices garde ses propres appareils : un boîtier à une autre adresse, ou un autre produit GCE, ne reçoit jamais leurs commandes. Jamais testé avec un vrai appareil. Sans lien avec GCE Electronics."
+        "en": "Brings up to three GCE Electronics Eco-Devices RT2 into Gladys through their local JSON API: the indexes of the teleinformation and of the pulse counters (never 0; a drop or a jump held back until you accept it; the power counters of the current clamps you list, with their mode), relays (read only unless you list them below), digital inputs, pilot-wire zones of the X-4FP, X-THL sensors, the teleinformation details and the instant power of the posts. Pilot wire: Off and Frost protection go first, without any option (see the guide for their limits); Eco and Comfort only once allowed below. Each Eco-Devices keeps its own devices: a box at another address, or another GCE product, never gets their commands. Never tested with a real device. Not affiliated with GCE Electronics.",
+        "fr": "Amène dans Gladys jusqu’à trois Eco-Devices RT2 de GCE Electronics par leur API JSON locale : les index de la téléinformation et des compteurs d’impulsions (jamais 0 ; une baisse ou un saut retenu jusqu’à ce que vous l’acceptiez ; compteurs de puissance des pinces que vous listez, avec leur mode), relais (en lecture seule sauf ceux listés ci-dessous), entrées, zones de fil pilote des X-4FP, capteurs X-THL, détail de la téléinformation et puissance instantanée des postes. Fil pilote : Arrêt et Hors-gel passent en premier, sans option (limites dans le guide) ; Éco et Confort seulement une fois autorisés ci-dessous. Chaque Eco-Devices garde ses propres appareils : un boîtier à une autre adresse, ou un autre produit GCE, ne reçoit jamais leurs commandes. Jamais testé avec un vrai appareil. Sans lien avec GCE Electronics."
       },
       "links": [
         {
@@ -129,12 +129,29 @@
         "fr": "Compteurs d’impulsions"
       },
       "description": {
-        "en": "The pulse counters to bring in, what they measure and the unit of their index in the Eco-Devices: C1 to C12, water (l or m3), gas (m3 or l) or electricity (wh or kwh), e.g. \"C1:water:l, C2:gas:m3\". Water and gas arrive in m³, electricity in kWh. Compare the first value published with the meter; changing the unit later stops its index (see the guide).",
-        "fr": "Les compteurs d’impulsions à amener, ce qu’ils mesurent et l’unité de leur index dans l’Eco-Devices : C1 à C12, water (eau, l ou m3), gas (gaz, m3 ou l) ou electricity (électricité, wh ou kwh), par ex. « C1:water:l, C2:gas:m3 ». L’eau et le gaz arrivent en m³, l’électricité en kWh. Comparez la première valeur publiée au compteur ; changer l’unité ensuite arrête son index (voir le guide)."
+        "en": "The pulse counters to bring in, what they measure and the unit of their index in the Eco-Devices: C1 to C12, water (l or m3), gas (m3 or l) or electricity (wh or kwh), e.g. \"C1:water:l, C2:gas:m3\" (French words work too: \"C1:eau:l, C2:gaz:m3, C3:électricité:wh\"). Water and gas arrive in m³, electricity in kWh. Compare the first value published with the meter; changing the unit later stops its index (see the guide).",
+        "fr": "Les compteurs d’impulsions à amener, ce qu’ils mesurent et l’unité de leur index dans l’Eco-Devices : C1 à C12, eau (l ou m3), gaz (m3 ou l) ou électricité (wh ou kwh), par ex. « C1:eau:l, C2:gaz:m3, C3:électricité:wh » (les mots anglais water, gas, electricity marchent aussi). L’eau et le gaz arrivent en m³, l’électricité en kWh. Comparez la première valeur publiée au compteur ; changer l’unité ensuite arrête son index (voir le guide)."
       },
       "placeholder": {
         "en": "C1:water:l",
-        "fr": "C1:water:l"
+        "fr": "C1:eau:l"
+      },
+      "required": false
+    },
+    {
+      "key": "clamps",
+      "type": "string",
+      "label": {
+        "en": "Power counters (current clamps)",
+        "fr": "Compteurs de puissance (pinces ampèremétriques)"
+      },
+      "description": {
+        "en": "The power counters of the Eco-Devices (page \"Compteurs de puissance\": each one counts a current clamp, in kWh) to bring in, with their mode as you set it there: T1 to T20; consumption (the default), production, injection or drawn, e.g. \"T1, T2:production, T3:injection\". They arrive in kWh. Keep kWh as the counting unit in the Eco-Devices (not kVAh). Compare the first value published with the page of the Eco-Devices.",
+        "fr": "Les compteurs de puissance de l’Eco-Devices (page « Compteurs de puissance » : chacun compte une pince ampèremétrique, en kWh) à amener, avec leur mode tel que vous l’y avez réglé : T1 à T20 ; consommation (par défaut), production, injection ou soutirage, par ex. « T1, T2:production, T3:injection ». Ils arrivent en kWh. Gardez kWh comme unité de comptage dans l’Eco-Devices (pas kVAh). Comparez la première valeur publiée à la page de l’Eco-Devices."
+      },
+      "placeholder": {
+        "en": "T1, T2:production",
+        "fr": "T1, T2:production"
       },
       "required": false
     },
@@ -300,6 +317,23 @@
       "required": false
     },
     {
+      "key": "clamps_2",
+      "type": "string",
+      "label": {
+        "en": "Power counters of Eco-Devices #2",
+        "fr": "Compteurs de puissance de l’Eco-Devices n°2"
+      },
+      "description": {
+        "en": "Same rules as for the first one, e.g. \"T1, T2:production\".",
+        "fr": "Mêmes règles que pour le premier, par ex. « T1, T2:production »."
+      },
+      "placeholder": {
+        "en": "T1, T2:production",
+        "fr": "T1, T2:production"
+      },
+      "required": false
+    },
+    {
       "key": "box_3",
       "type": "section",
       "label": {
@@ -389,6 +423,23 @@
       "placeholder": {
         "en": "C1:water:l",
         "fr": "C1:water:l"
+      },
+      "required": false
+    },
+    {
+      "key": "clamps_3",
+      "type": "string",
+      "label": {
+        "en": "Power counters of Eco-Devices #3",
+        "fr": "Compteurs de puissance de l’Eco-Devices n°3"
+      },
+      "description": {
+        "en": "Same rules as for the first one, e.g. \"T1, T2:production\".",
+        "fr": "Mêmes règles que pour le premier, par ex. « T1, T2:production »."
+      },
+      "placeholder": {
+        "en": "T1, T2:production",
+        "fr": "T1, T2:production"
       },
       "required": false
     }

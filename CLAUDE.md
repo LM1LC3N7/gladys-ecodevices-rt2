@@ -46,6 +46,22 @@ test/helpers/         fake Eco-Devices on the virtual clock and over real HTTP, 
 test/kit/             parts of the shared test kit (clocks, HTTP server)
 ```
 
+Sources on the API (read for the data formats only; the GPL plugins of
+Jeedom were not opened): the GCE PDF "API Eco Devices RT" (2017, in
+`~/code/ref/gce/`), the GCE wiki pages "API_EDRT" (the command list) and
+"EcoDevice_RT2" (page Tore: current -> power -> "index en Wh"; 4 clamp inputs
+on the RT2, 12 on an X-400 CT; postes and sous-postes), the GCE forum topic
+15493 (firmware 3.0 release notes, 2022-06-16: 20 "compteurs de puissance"
+with a mode consommation / production / soutiré / injecté and a unit kWh or
+kVAh; Chris_eco's `Index=T` of 2022-06-17), the Jeedom community topics 87420
+(loic69, 2022-07-21: `Index_TORE1`..`20` on firmware 3, `Index_TORE_Cons1-4`,
+`Index_TORE_Dist1-4`, `Index_TORE5-16` on firmware 2) and 73947 (firmware
+2.01: the keys of `Index=all` and `Get=all`), the GCE forum topic 7556
+(firmware 2 answers: `INSTANT_POSTE`, `Index_TORE_Cons1`, `INDEX_POSTE`),
+pyecodevices_rt2 (MIT) and the Home Assistant integration ecodevices_rt2
+(Apache-2.0) for the keys they read, and cce66's answers in community topic
+11448 (his `Index=all`, `Get=R|FP|TI|P` and `status.json`, firmware 3.00.04).
+
 Safety rules (see TODO.md "Decisions"): relays read only unless listed;
 pilot wire Off and Frost protection (and switching a listed relay off) are
 protective: never refused by an option, a pause, a queue or a read, they cut
