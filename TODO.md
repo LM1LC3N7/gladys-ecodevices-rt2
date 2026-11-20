@@ -420,3 +420,10 @@ Still open, to ask on the forum (short, in French):
   last value in Gladys; keeping the first value of a feature taken again
   is left for later: rare).
 - Still open: the Wh unit not compared with the page of a real RT2.
+
+## Minors from review rt2-clamps-r2 (2026-11-20)
+
+- The "×2" error can be cut when there are 10 errors or more (`slice`).
+- A typo on a code already listed does not neutralise that code.
+- "×2" and "not listed" can show together.
+- The firmware 2 note shows even when no counter is listed.
