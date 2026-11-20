@@ -228,13 +228,13 @@ export const T = {
     both(`Extensions not understood: ${list.en}.`, `Extensions non comprises : ${list.fr}.`),
   counterErrors: (list) =>
     both(
-      `Pulse counters not understood (expected "C1:water:l", "C2:gas:m3", "C3:electricity:wh"): ${list.en}.`,
-      `Compteurs d’impulsions non compris (attendu « C1:eau:l », « C2:gaz:m3 », « C3:électricité:wh ») : ${list.fr}.`,
+      `Pulse counters not understood (expected "C1:water:l", "C2:gas:m3", "C3:electricity:wh"; "×2": given twice with different settings, neither kept): ${list.en}.`,
+      `Compteurs d’impulsions non compris (attendu « C1:eau:l », « C2:gaz:m3 », « C3:électricité:wh » ; « ×2 » : donné deux fois avec des réglages différents, aucun gardé) : ${list.fr}.`,
     ),
   clampErrors: (list) =>
     both(
-      `Power counters not understood (expected "T1", "T2:production", "T3:injection", "T4:drawn"): ${list.en}.`,
-      `Compteurs de puissance non compris (attendu « T1 », « T2:production », « T3:injection », « T4:soutirage ») : ${list.fr}.`,
+      `Power counters not understood (expected "T1", "T2:production", "T3:injection", "T4:drawn"; "×2": given twice with different modes, neither kept): ${list.en}.`,
+      `Compteurs de puissance non compris (attendu « T1 », « T2:production », « T3:injection », « T4:soutirage » ; « ×2 » : donné deux fois avec des modes différents, aucun gardé) : ${list.fr}.`,
     ),
   relaysReadOnly: (count) =>
     count === 1
@@ -292,6 +292,15 @@ export const T = {
     both(
       `Unit of a counter changed after its index was published, the index is no longer sent (its values would be 1000 times off): ${list.en}. Put the unit back, or delete the device and create it again (its history starts over).`,
       `Unité d’un compteur changée après la publication de son index, l’index n’est plus envoyé (ses valeurs seraient 1000 fois décalées) : ${list.fr}. Remettez l’unité, ou supprimez l’appareil et recréez-le (son historique repart de zéro).`,
+    ),
+  firmware2: both(
+    'This Eco-Devices answers the clamps of firmware 2 (Index_TORE_Cons1): the power counters are not read; update it to firmware 3.',
+    'Cet Eco-Devices répond les pinces du firmware 2 (Index_TORE_Cons1) : les compteurs de puissance ne sont pas lus ; mettez-le à jour en firmware 3.',
+  ),
+  metersNoValue: (list) =>
+    both(
+      `Index(es) listed but without a value (a power counter bound to no clamp in the "Compteurs de puissance" page of the RT2, or erased; a pulse counter at "--"?): ${list.en}. Nothing is published for them.`,
+      `Index listé(s) mais sans valeur (compteur de puissance relié à aucune pince dans la page « Compteurs de puissance » du RT2, ou effacé ; compteur d’impulsions à « -- » ?) : ${list.fr}. Rien n’est publié pour eux.`,
     ),
   clampsUnlisted: (list) =>
     both(

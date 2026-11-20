@@ -400,4 +400,23 @@ Still open, to ask on the forum (short, in French):
   the RT2, then list them in Gladys. "C1:Eau, C2": French words now
   understood; `C2` has no type (still not understood, the status says the
   form expected).
-- Mutants: `scripts/mutants.mjs` + `scripts/mutants.json` (10, all killed).
+- Mutants: `scripts/mutants.mjs` + `scripts/mutants.json` (14, all killed).
+
+## Review rt2-clamps-r1 (2026-11-20): fixed
+
+- B1: `METER_FEATURES` of `src/store.js` is derived from COUNTER_TYPES and
+  CLAMP_MODES (the production, injection and drawn states were not read
+  back: a held jump passed at a restart). A restart test per mode, a
+  mutant dropping a mode.
+- I1: a code given twice with different settings is refused in whole
+  (`parseClamps` and `parseCounters`, "TORE3 ×2" / "C1 ×2" in the status);
+  given twice the same, kept once.
+- I2: only the indexes with a value are counted; the listed ones without a
+  value are named with the likely cause; firmware 2 (`Index_TORE_Cons1`
+  present) reads no power counter at all (TORE5-16 included), said in the
+  status, as the docs say.
+- Minors: test titles; differential "not supported, do not list"; going
+  back to an old mode documented (the old feature starts again from its
+  last value in Gladys; keeping the first value of a feature taken again
+  is left for later: rare).
+- Still open: the Wh unit not compared with the page of a real RT2.

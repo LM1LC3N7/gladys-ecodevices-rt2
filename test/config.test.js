@@ -80,17 +80,17 @@ test('extensions: TIC (the teleinformation details) and the posts P1 to P8', () 
 
 test('counters: C1 to C12, a type, a unit of that type; the default unit; no prototype key', () => {
   const { counters, errors } = parseCounters(
-    'C1:water:l, c2=gas, C3:electricity:kwh, C4:water:kwh, C13:gas, C5:constructor, C6:__proto__, C1:gas',
+    'C1:water:l, c2=gas, C3:electricity:kwh, C4:water:kwh, C13:gas, C5:constructor, C6:__proto__, C1:gas, C2:gas:m3',
   );
   assert.deepEqual(
     [...counters],
     [
-      ['c1', { type: 'water', unit: 'l' }],
       ['c2', { type: 'gas', unit: 'm3' }],
       ['c3', { type: 'electricity', unit: 'kwh' }],
     ],
+    'C1 given twice with two types: neither kept; C2 given twice the same: kept once',
   );
-  assert.equal(errors.length, 5);
+  assert.deepEqual(errors, ['C4:water:kwh', 'C13:gas', 'C5:constructor', 'C6:__proto__', 'C1 ×2']);
   assert.deepEqual(
     [...parseCounters('C7:water:m³').counters],
     [['c7', { type: 'water', unit: 'm3' }]],

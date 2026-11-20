@@ -183,6 +183,31 @@ const plain = (entry) =>
     .replace(/\s+/g, '')
     .replace('m³', 'm3');
 
+/**
+ * A code given twice with different settings is refused in whole (neither
+ * kept: the order typed is no choice); given twice the same, kept once.
+ * `entries`: [code, shown, settings, raw] in the order typed.
+ */
+function dedupe(entries, errors) {
+  const out = new Map();
+  const shownOf = new Map();
+  const twice = new Set();
+  for (const [code, shown, settings] of entries) {
+    const seen = out.get(code);
+    if (seen === undefined) {
+      out.set(code, settings);
+      shownOf.set(code, shown);
+    } else if (JSON.stringify(seen) !== JSON.stringify(settings)) {
+      twice.add(code);
+    }
+  }
+  for (const code of twice) {
+    out.delete(code);
+    errors.push(`${shownOf.get(code)} ×2`);
+  }
+  return out;
+}
+
 /** The counter type of a word of the configuration (`water`, `eau`, `gaz`...), else undefined. */
 const counterTypeOf = (word) =>
   Object.keys(COUNTER_ALIASES).find((type) => COUNTER_ALIASES[type].includes(word));
@@ -194,7 +219,7 @@ const counterTypeOf = (word) =>
  * French words are taken too (`C1:eau`, `C2:gaz:m3`, `C3:électricité`).
  */
 export function parseCounters(raw) {
-  const counters = new Map();
+  const entries = [];
   const errors = [];
   for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
     const text = plain(entry);
@@ -204,18 +229,13 @@ export function parseCounters(raw) {
     const typeName = match ? counterTypeOf(match[2]) : undefined;
     const type = typeName ? COUNTER_TYPES[typeName] : undefined;
     const unit = match?.[3] ?? type?.units[0];
-    if (
-      !type ||
-      n < 1 ||
-      n > LIMITS_RT2.counters ||
-      !type.units.includes(unit) ||
-      counters.has(`c${n}`)
-    ) {
+    if (!type || n < 1 || n > LIMITS_RT2.counters || !type.units.includes(unit)) {
       errors.push(entry.trim().slice(0, 24));
       continue;
     }
-    counters.set(`c${n}`, { type: typeName, unit });
+    entries.push([`c${n}`, `C${n}`, { type: typeName, unit }]);
   }
+  const counters = dedupe(entries, errors);
   return { counters, errors: errors.slice(0, 10) };
 }
 
@@ -226,7 +246,7 @@ export function parseCounters(raw) {
  * API does not give the mode: it is the user's word (see CLAMP_MODES).
  */
 export function parseClamps(raw) {
-  const clamps = new Map();
+  const entries = [];
   const errors = [];
   for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
     const text = plain(entry);
@@ -238,12 +258,13 @@ export function parseClamps(raw) {
         ? 'consumption'
         : Object.keys(CLAMP_MODES).find((m) => CLAMP_MODES[m].aliases.includes(match[2]))
       : undefined;
-    if (!mode || n < 1 || n > LIMITS_RT2.tore || clamps.has(`tore${n}`)) {
+    if (!mode || n < 1 || n > LIMITS_RT2.tore) {
       errors.push(entry.trim().slice(0, 24));
       continue;
     }
-    clamps.set(`tore${n}`, { mode });
+    entries.push([`tore${n}`, `TORE${n}`, { mode }]);
   }
+  const clamps = dedupe(entries, errors);
   return { clamps, errors: errors.slice(0, 10) };
 }
 

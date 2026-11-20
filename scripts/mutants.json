@@ -38,8 +38,8 @@
   {
     "name": "parseClamps: T21 and beyond accepted",
     "file": "src/config.js",
-    "from": "    if (!mode || n < 1 || n > LIMITS_RT2.tore || clamps.has(`tore${n}`)) {",
-    "to": "    if (!mode || n < 1 || clamps.has(`tore${n}`)) {"
+    "from": "    if (!mode || n < 1 || n > LIMITS_RT2.tore) {",
+    "to": "    if (!mode || n < 1) {"
   },
   {
     "name": "parseClamps: an unknown mode taken for consumption",
@@ -52,5 +52,35 @@
     "file": "src/config.js",
     "from": "  Object.keys(COUNTER_ALIASES).find((type) => COUNTER_ALIASES[type].includes(word));",
     "to": "  Object.keys(COUNTER_ALIASES).find((type) => type === word);"
+  },
+  {
+    "name": "normalizeMemory: a power-counter mode dropped from the features read back (B1)",
+    "file": "src/store.js",
+    "from": "    ...Object.values(CLAMP_MODES).map((m) => m.feature),\n",
+    "to": "    ...Object.values(CLAMP_MODES).map((m) => m.feature).filter((f) => f !== 'injection-index'),\n"
+  },
+  {
+    "name": "dedupe: the first entry wins on a conflicting duplicate (I1)",
+    "file": "src/config.js",
+    "from": "      twice.add(code);\n",
+    "to": "\n"
+  },
+  {
+    "name": "metersOf: firmware 2 clamps read as power counters (I2)",
+    "file": "src/app.js",
+    "from": "    const firmware2 = json ? Object.hasOwn(json, 'Index_TORE_Cons1') : false;",
+    "to": "    const firmware2 = false;"
+  },
+  {
+    "name": "status: a listed index without value counted as read (I2)",
+    "file": "src/app.js",
+    "from": "      else if (target.at !== undefined && target.value !== undefined) counts.meters += 1;",
+    "to": "      else if (target.at !== undefined) counts.meters += 1;"
+  },
+  {
+    "name": "status: the listed indexes without value never said (I2)",
+    "file": "src/app.js",
+    "from": "        noValue.push(code);\n",
+    "to": "\n"
   }
 ]

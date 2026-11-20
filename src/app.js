@@ -261,6 +261,8 @@ export class Rt2App {
     this.unitChanged = new Set();
     /** Clamp indexes read above 0, not offered (unit to confirm). */
     this.unlistedClamps = [];
+    this.metersNoValue = [];
+    this.firmware2 = false;
     /** The monotonic time of the last read an Eco-Devices RT2 answered (its product). */
     this.productAt = undefined;
     /** The first click of "Accept the held index": { at, listedAt, list, generation }. */
@@ -1210,15 +1212,25 @@ export class Rt2App {
     for (let n = 1; n <= LIMITS_RT2.tore; n += 1) codes.push(`tore${n}`);
     for (let n = 1; n <= LIMITS_RT2.counters; n += 1) codes.push(`c${n}`);
     const unlisted = [];
+    const noValue = [];
+    // Firmware 2 answers `Index_TORE_Cons1-4`, `Index_TORE_Dist1-4` and `Index_TORE5-16`
+    // (the clamps themselves, not the power counters of firmware 3): nothing is read from it.
+    const firmware2 = json ? Object.hasOwn(json, 'Index_TORE_Cons1') : false;
     for (const code of codes) {
       const listed = code.startsWith('c')
         ? this.config.counters.has(code)
         : code.startsWith('tore')
           ? this.config.clamps.has(code)
           : true;
-      const raw = json ? Object.getOwnPropertyDescriptor(json, indexKey(code))?.value : undefined;
+      const raw =
+        json && !(firmware2 && code.startsWith('tore'))
+          ? Object.getOwnPropertyDescriptor(json, indexKey(code))?.value
+          : undefined;
       const meter = meterOf(code, raw, this.config.counters, this.config.clamps);
       if (code.startsWith('tore') && !listed && indexNumber(raw) > 0) unlisted.push(code);
+      if (listed && !code.startsWith('ti') && json && meter?.value === undefined) {
+        noValue.push(code);
+      }
       const wanted = code.startsWith('ti')
         ? (meter?.value !== undefined && json !== undefined) || created.has(code)
         : listed || created.has(code);
@@ -1232,7 +1244,11 @@ export class Rt2App {
         at,
       });
     }
-    if (json !== undefined) this.unlistedClamps = unlisted;
+    if (json !== undefined) {
+      this.unlistedClamps = unlisted;
+      this.metersNoValue = noValue;
+      this.firmware2 = firmware2;
+    }
     return out;
   }
 
@@ -1342,7 +1358,7 @@ export class Rt2App {
       else if (target.kind === KINDS.THL) counts.thl += 1;
       else if (target.kind === KINDS.TELEINFO) counts.teleinfo += 1;
       else if (target.kind === KINDS.POST) counts.posts += 1;
-      else if (target.at !== undefined) counts.meters += 1;
+      else if (target.at !== undefined && target.value !== undefined) counts.meters += 1;
     }
     const parts = [T.connected(counts), ...this.relayHints()];
     if (this.config.relayErrors.length > 0) {
@@ -1393,6 +1409,10 @@ export class Rt2App {
     }
     const unknown = [...this.unknownZones].filter((code) => this.model.has(code)).sort();
     if (unknown.length > 0) parts.push(T.zonesNumeric(listOf(unknown.map(shownCode))));
+    if (this.firmware2) parts.push(T.firmware2);
+    if (this.metersNoValue.length > 0) {
+      parts.push(T.metersNoValue(listOf(this.metersNoValue.map(shownCode))));
+    }
     if (this.unlistedClamps.length > 0) {
       parts.push(T.clampsUnlisted(listOf(this.unlistedClamps.map(shownCode))));
     }

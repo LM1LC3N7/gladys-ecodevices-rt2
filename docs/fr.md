@@ -172,17 +172,25 @@ listez donc chaque compteur avec son mode dans « Compteurs de puissance »
 Un compteur en consommation devient un index d’énergie, en production un
 index de production, en injection un index d’injection (`grid-sensor`,
 `output-index`), en soutirage un index de soutirage (`input-index`) ; un
-compteur différentiel se liste avec le sens qu’il compte. L’index est lu en
+compteur **différentiel** n’est pas pris en charge (on ne sait pas ce qu’il
+compte ni s’il peut baisser) : ne le listez pas. Un compteur donné deux fois
+avec deux modes (`T3, T3:injection`) est refusé en entier, l’état le dit
+(« TORE3 ×2 »). L’index est lu en
 Wh (documentation GCE : « index en Wh » ; les valeurs vues sur trois vrais
 RT2 sont des milliers de kWh) et publié en kWh ; aucune comparaison avec la
 page d’un vrai RT2 encore : **comparez la première valeur publiée à la page
 « Compteurs de puissance »** et dites-nous. Un compteur qui compte mais n’est
-pas listé est nommé dans l’état ; un compteur listé qui lit 0 (pas encore
-relié à une pince, ou effacé) n’est pas publié ; un compteur dont vous
-changez le mode reçoit une nouvelle fonctionnalité, qui repart de la
-première valeur lue ; un compteur effacé dans le RT2 est une baisse, retenue
-jusqu’à vos deux clics. Un RT2 en firmware 2 (`Index_TORE_Cons1`…) n’est pas
-lu. Un compteur d’impulsions est lu dans l’unité que vous
+pas listé est nommé dans l’état ; un compteur listé sans valeur (0 ou « -- » :
+pas encore relié à une pince, ou effacé) n’est pas publié, ne compte pas
+dans les index lus et est nommé dans l’état ; un compteur dont vous changez
+le mode reçoit une nouvelle fonctionnalité, qui repart de la première valeur
+lue (si vous revenez ensuite à l’ancien mode, son ancienne fonctionnalité
+repart de sa dernière valeur dans Gladys : un écart accumulé entre-temps
+peut passer comme un saut couvert par le temps) ; un compteur effacé dans le
+RT2 est une baisse, retenue jusqu’à vos deux clics. Un RT2 en firmware 2
+(qui répond `Index_TORE_Cons1`…) n’a pas de compteur de puissance : rien n’est
+lu dans ses `Index_TORE`, pas même `Index_TORE5` à `16`, et l’état le dit.
+Un compteur d’impulsions est lu dans l’unité que vous
 indiquez : comparez la première valeur publiée au compteur. Un compteur dont
 vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la
 première valeur lue. Si vous changez son **unité** après la publication de

@@ -22,10 +22,14 @@ the notes of the version's GitHub Release.
   kWh), through the index guard (never 0, never lower, a drop held). The
   API gives neither the mode nor the counting unit (kWh or kVAh): the docs
   say to keep kWh and to compare the first value with the page of the RT2.
-  A counter counting but not listed is named in the status.
+  A counter counting but not listed is named in the status; a listed one
+  without a value is named too (bound to no clamp, or erased?) and not
+  counted among the indexes read; an RT2 on firmware 2
+  (`Index_TORE_Cons1`) has its power counters not read at all, said.
 - Pulse counters: the French words (`C1:eau:l`, `C2:gaz:m3`,
   `C3:électricité:wh`) are understood; a counter not understood is said with
-  the form expected.
+  the form expected. A counter (pulse or power) given twice with different
+  settings is refused in whole ("C1 ×2"), never the first one taken.
 
 ### Changed
 

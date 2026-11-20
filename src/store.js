@@ -16,7 +16,7 @@
 // -----------------------------------------------------------------------------
 
 import { open, readFile, rename } from 'node:fs/promises';
-import { FEATURES, LIMITS, TIMINGS } from './constants.js';
+import { CLAMP_MODES, COUNTER_TYPES, FEATURES, LIMITS, TIMINGS } from './constants.js';
 
 export const STATE_FILE = '/data/ecodevices-rt2-state.json';
 /** The file of a slot. */
@@ -116,7 +116,19 @@ export function memoryStore(initial = null) {
 const time = (value) => (Number.isFinite(value) && value > 0 ? value : undefined);
 const isCode = (value) => typeof value === 'string' && /^[a-z]{1,4}\d{1,2}$/.test(value);
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-const METER_FEATURES = [FEATURES.ENERGY, FEATURES.WATER, FEATURES.GAS];
+/**
+ * Every feature an index guard can belong to: the teleinformation, each
+ * counter type, each power-counter mode. Derived, so that a mode added later
+ * cannot be forgotten here (a state not read back would let a held jump
+ * through at the next restart).
+ */
+const METER_FEATURES = [
+  ...new Set([
+    FEATURES.ENERGY,
+    ...Object.values(COUNTER_TYPES).map((t) => t.feature),
+    ...Object.values(CLAMP_MODES).map((m) => m.feature),
+  ]),
+];
 
 /** A guard read back: `{ code, value, resends, confirmed, other }`; undefined when not valid. */
 function guardOf(raw) {

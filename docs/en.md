@@ -159,17 +159,25 @@ in "Power counters" (`T1, T2:production`), and keep kWh as the counting unit
 in the RT2 (Gladys has no kVAh: a counter in kVAh would be published as
 kWh). A counter in consumption becomes an energy index, in production a
 production index, in injection an injection index (`grid-sensor`,
-`output-index`), in drawn mode a drawn index (`input-index`); a differential
-counter is listed with the direction it counts. The index is read in Wh (GCE
+`output-index`), in drawn mode a drawn index (`input-index`); a
+**differential** counter is not supported (what it counts, and whether it
+can go down, is not known): do not list it. A counter given twice with two
+modes (`T3, T3:injection`) is refused in whole, the status says so
+("TORE3 ×2"). The index is read in Wh (GCE
 documentation: "index en Wh"; the values seen on three real RT2 are
 thousands of kWh) and published in kWh; not compared with the page of a real
 RT2 yet: **compare the first value published with the "Compteurs de
 puissance" page** and tell us. A counter counting but not listed is named in
-the status; a listed counter reading 0 (not bound to a clamp yet, or erased)
-is not published; a counter whose mode you change gets a new feature, which
-starts from the first value read; a counter erased in the RT2 is a drop,
-held until your two clicks. An RT2 on firmware 2 (`Index_TORE_Cons1`…) is
-not read. A pulse counter
+the status; a listed counter without a value (0 or "--": not bound to a
+clamp yet, or erased) is not published, is not counted among the indexes
+read and is named in the status; a counter whose mode you change gets a new
+feature, which starts from the first value read (if you then go back to the
+old mode, its old feature starts again from its last value in Gladys: what
+accumulated meanwhile may pass as a jump covered by the time); a counter
+erased in the RT2 is a drop, held until your two clicks. An RT2 on
+firmware 2 (answering `Index_TORE_Cons1`…) has no power counter: nothing is
+read from its `Index_TORE`, not even `Index_TORE5` to `16`, and the status
+says so. A pulse counter
 is read in the unit you give: compare the first value published with the
 meter. A counter whose **type** you change gets a new feature, which starts
 from the first value read. If you change its **unit** after its index was
