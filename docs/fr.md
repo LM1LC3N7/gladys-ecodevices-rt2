@@ -50,7 +50,8 @@ leurs capteurs X-THL (température, humidité, luminosité).
    de puissance listé, la clé lue dans la réponse, la valeur brute, la valeur
    convertie et ce qu’elle est devenue : publiée, retenue (avec la valeur que
    Gladys garde), non publiée faute d’appareil créé, de fonctionnalité sur
-   l’appareil (« Mettre à jour »), d’unité inchangée ou de /data (par ex.
+   l’appareil (« Mettre à jour »), ou parce que l’unité a changé, que /data
+   ne répond pas ou que l’Eco-Devices lu n’est pas celui des appareils (par ex.
    `TORE1 (Index_TORE1) : 271232 lu, converti en 271,232 kWh, publié`,
    `TORE2 (Index_TORE2) : pas de valeur (« -- »)`,
    `TORE3 : clé absente de la réponse`). Si la lecture du clic n’a pas abouti

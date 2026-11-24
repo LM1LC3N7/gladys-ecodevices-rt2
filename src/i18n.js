@@ -386,8 +386,8 @@ export const T = {
       `Unité d’un compteur changée après la publication de son index, l’index n’est plus envoyé (ses valeurs seraient 1000 fois décalées) : ${list.fr}. Remettez l’unité, ou supprimez l’appareil et recréez-le (son historique repart de zéro).`,
     ),
   firmware2: both(
-    'This Eco-Devices answers the clamps of firmware 2 (Index_TORE_Cons1): the power counters are not read; update it to firmware 3.',
-    'Cet Eco-Devices répond les pinces du firmware 2 (Index_TORE_Cons1) : les compteurs de puissance ne sont pas lus ; mettez-le à jour en firmware 3.',
+    'This Eco-Devices answers the clamps of firmware 2 (Index_TORE_Cons1, Index_TORE_Dist1 or Index_TORE_<n>): the power counters are not read; update it to firmware 3.',
+    'Cet Eco-Devices répond les pinces du firmware 2 (Index_TORE_Cons1, Index_TORE_Dist1 ou Index_TORE_<n>) : les compteurs de puissance ne sont pas lus ; mettez-le à jour en firmware 3.',
   ),
   /**
    * The listed meters the answer gives no value for, grouped by why (src/rt2/model.js
@@ -629,8 +629,8 @@ export const T = {
         unitChanged: both('not published: unit changed', 'non publié : unité changée'),
         store: both('not published (/data)', 'non publié (/data)'),
         owner: both(
-          'not published: not the Eco-Devices of the devices',
-          'non publié : pas l’Eco-Devices des appareils',
+          'not published: not the Eco-Devices of the devices, or not known yet (see the status)',
+          'non publié : pas l’Eco-Devices des appareils, ou pas encore connu (voir l’état)',
         ),
       };
       if (why === 'absent' || why === 'unread' || why === 'firmware2') {

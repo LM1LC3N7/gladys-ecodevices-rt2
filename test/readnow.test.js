@@ -392,14 +392,17 @@ test('a click after Index=T failed: no exception, the power counters said unread
 
 test('app.tick({ now: true }) during a pause reads nothing (the pause of the Eco-Devices holds whatever the caller)', async () => {
   const w = world();
-  const { app, start, wait } = await setup({ world: w, config: CFG });
+  const { app, start, wait, act } = await setup({ world: w, config: CFG });
   await start();
   w.failReads = 429;
   await wait(15 * SECOND);
   w.failReads = undefined;
   const before = w.requests.length;
-  await app.tick({ now: true, evenRefused: true });
+  // Not awaited without a limit: a tick that read would hang the frozen clock (never a hang
+  // of the test, always a failure).
+  const tick = app.tick({ now: true, evenRefused: true });
   await wait(100);
   assert.equal(w.requests.length, before, 'nothing sent during the pause');
+  await act(tick, 2 * SECOND);
   app.stop();
 });

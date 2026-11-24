@@ -47,7 +47,8 @@ sensors (temperature, humidity, luminosity).
    pulse counter and power counter, the key read in the answer, the raw
    value, the value converted and what became of it: published, held back
    (with the value Gladys keeps), not published for lack of a device, of the
-   feature on the device ("Update"), of an unchanged unit or of /data (e.g.
+   feature on the device ("Update"), or because the unit changed, /data does
+   not answer or the Eco-Devices read is not the one of the devices (e.g.
    `TORE1 (Index_TORE1): 271232 read, converted to 271.232 kWh, published`,
    `TORE2 (Index_TORE2): no value ("--")`,
    `TORE3: key absent from the answer`). When the read of the click did not

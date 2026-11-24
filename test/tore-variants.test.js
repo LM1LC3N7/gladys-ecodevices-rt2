@@ -143,7 +143,10 @@ test('review r1 S3: Index_TORE_1..16 in Index=all (the clamps of firmware 2, no 
   await start();
   await wait(15 * SECOND);
   assert.deepEqual(states(TORE(3, 'production-index')), [], 'a clamp index never a power counter');
-  assert.match(message(gladys), /answers the clamps of firmware 2 \(Index_TORE_Cons1\)/);
+  assert.match(
+    message(gladys),
+    /answers the clamps of firmware 2 \(Index_TORE_Cons1, Index_TORE_Dist1 or Index_TORE_<n>\)/,
+  );
   assert.ok(!world.requests.some((r) => r.path.includes('Index=T')), 'firmware 2: no Index=T');
   assert.doesNotMatch(message(gladys), /without a value/);
   app.stop();
@@ -176,7 +179,10 @@ test('review r1 S2: Index=all without tore keys, Index=T answering the clamps of
     'TORE5 of firmware 2 never an injection index',
   );
   assert.deepEqual(states(TORE(1)), []);
-  assert.match(message(gladys), /answers the clamps of firmware 2 \(Index_TORE_Cons1\)/);
+  assert.match(
+    message(gladys),
+    /answers the clamps of firmware 2 \(Index_TORE_Cons1, Index_TORE_Dist1 or Index_TORE_<n>\)/,
+  );
   assert.doesNotMatch(message(gladys), /without a value/);
   const answer = await act(gladys.fake.action('read_now', {}));
   assert.match(

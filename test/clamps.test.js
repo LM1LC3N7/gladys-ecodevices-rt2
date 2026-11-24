@@ -234,7 +234,10 @@ test('firmware 2 (Index_TORE_Cons1 present): no power counter read, not even TOR
     [],
     'Index_TORE5 of firmware 2 is a clamp, not a power counter',
   );
-  assert.match(message(gladys), /firmware 2 \(Index_TORE_Cons1\): the power counters are not read/);
+  assert.match(
+    message(gladys),
+    /firmware 2 \(Index_TORE_Cons1, Index_TORE_Dist1 or Index_TORE_<n>\): the power counters are not read/,
+  );
   assert.match(message(gladys, 'fr'), /pinces du firmware 2/);
   assert.match(message(gladys), /, 1 index\(es\)\./, 'TI1 only');
   assert.doesNotMatch(message(gladys), /counting but not listed/);
