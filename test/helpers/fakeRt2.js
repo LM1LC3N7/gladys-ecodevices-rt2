@@ -36,6 +36,8 @@ export function answerOf(world, query) {
     for (let n = 1; n <= 7; n += 1) out[`Index_TI${n}`] = world.TI[n];
     for (let n = 1; n < world.TORE.length; n += 1) out[`Index_TORE${n}`] = world.TORE[n];
     for (let n = 1; n <= 12; n += 1) out[`Index_C${n}`] = world.C[n];
+  } else if (query === 'T') {
+    for (let n = 1; n < world.TORE.length; n += 1) out[`Index_TORE${n}`] = world.TORE[n];
   }
   return out;
 }
@@ -174,7 +176,9 @@ function respond(world, record) {
   }
   if (world.failReads && !write) return json({}, world.failReads);
   const params = url.searchParams;
-  const group = params.get('Get') ?? (params.get('Index') === 'all' ? 'all' : undefined);
+  const group =
+    params.get('Get') ??
+    (['all', 'T'].includes(params.get('Index')) ? params.get('Index') : undefined);
   if (group) {
     if (world.failGroups.has(group)) return json({}, world.failGroups.get(group));
     if (world.fixtures.has(group)) return json(world.fixtures.get(group));

@@ -226,15 +226,80 @@ export const T = {
   },
   extensionErrors: (list) =>
     both(`Extensions not understood: ${list.en}.`, `Extensions non comprises : ${list.fr}.`),
-  counterErrors: (list) =>
+  /**
+   * One refused entry of "Pulse counters", with what is wrong with it:
+   * `{ entry, reason, word, unit }` (src/config.js parseCounters).
+   */
+  counterError: ({ entry, reason, word, unit }) => {
+    const q = (en, fr) => both(`"${entry}": ${en}`, `« ${entry} » : ${fr}`);
+    switch (reason) {
+      case 'format':
+        return q(
+          'expected a pulse counter C1 to C12, what it measures and the unit of its index, e.g. "C1:water:l"',
+          'attendu un compteur d’impulsions C1 à C12, ce qu’il mesure et l’unité de son index, par ex. « C1:eau:l »',
+        );
+      case 'number':
+        return q(
+          'the Eco-Devices RT2 has pulse counters C1 to C12 only',
+          'l’Eco-Devices RT2 n’a que les compteurs d’impulsions C1 à C12',
+        );
+      case 'missingType':
+        return q(
+          'what it measures is missing (water, gas, electricity), e.g. "C2:gas:m3"',
+          'il manque ce qu’il mesure (eau, gaz, électricité), par ex. « C2:gaz:m3 »',
+        );
+      case 'type':
+        return q(
+          `"${word}" is not something a counter measures (water, gas, electricity)`,
+          `« ${word} » n’est pas ce que mesure un compteur (eau, gaz, électricité)`,
+        );
+      case 'unit':
+        return q(
+          `"${unit}" is not a unit of its index (water: l or m3; gas: m3 or l; electricity: wh or kwh)`,
+          `« ${unit} » n’est pas une unité de son index (eau : l ou m3 ; gaz : m3 ou l ; électricité : wh ou kwh)`,
+        );
+      default:
+        return q(
+          'given twice with different settings, neither kept',
+          'donné deux fois avec des réglages différents, aucun gardé',
+        );
+    }
+  },
+  counterErrors: (details) =>
     both(
-      `Pulse counters not understood (expected "C1:water:l", "C2:gas:m3", "C3:electricity:wh"; "×2": given twice with different settings, neither kept): ${list.en}.`,
-      `Compteurs d’impulsions non compris (attendu « C1:eau:l », « C2:gaz:m3 », « C3:électricité:wh » ; « ×2 » : donné deux fois avec des réglages différents, aucun gardé) : ${list.fr}.`,
+      `Pulse counters not understood: ${listOf(details.map((d) => T.counterError(d).en)).en}.`,
+      `Compteurs d’impulsions non compris : ${listOf(details.map((d) => T.counterError(d).fr)).fr}.`,
     ),
-  clampErrors: (list) =>
+  /** One refused entry of "Power counters": `{ entry, reason, word }` (parseClamps). */
+  clampError: ({ entry, reason, word }) => {
+    const q = (en, fr) => both(`"${entry}": ${en}`, `« ${entry} » : ${fr}`);
+    switch (reason) {
+      case 'format':
+        return q(
+          'expected a power counter T1 to T20 and its mode, e.g. "T1" or "T2:production"',
+          'attendu un compteur de puissance T1 à T20 et son mode, par ex. « T1 » ou « T2:production »',
+        );
+      case 'number':
+        return q(
+          'the Eco-Devices RT2 has power counters T1 to T20 only',
+          'l’Eco-Devices RT2 n’a que les compteurs de puissance T1 à T20',
+        );
+      case 'mode':
+        return q(
+          `"${word}" is not a mode (consumption, production, injection, drawn); give the name to the device in Gladys`,
+          `« ${word} » n’est pas un mode (consommation, production, injection, soutirage) ; donnez le nom à l’appareil dans Gladys`,
+        );
+      default:
+        return q(
+          'given twice with different modes, neither kept',
+          'donné deux fois avec des modes différents, aucun gardé',
+        );
+    }
+  },
+  clampErrors: (details) =>
     both(
-      `Power counters not understood (expected "T1", "T2:production", "T3:injection", "T4:drawn"; "×2": given twice with different modes, neither kept): ${list.en}.`,
-      `Compteurs de puissance non compris (attendu « T1 », « T2:production », « T3:injection », « T4:soutirage » ; « ×2 » : donné deux fois avec des modes différents, aucun gardé) : ${list.fr}.`,
+      `Power counters not understood: ${listOf(details.map((d) => T.clampError(d).en)).en}.`,
+      `Compteurs de puissance non compris : ${listOf(details.map((d) => T.clampError(d).fr)).fr}.`,
     ),
   relaysReadOnly: (count) =>
     count === 1
@@ -259,6 +324,7 @@ export const T = {
       teleinfo: both('teleinformation', 'téléinformation'),
       posts: both('posts', 'postes'),
       indexes: both('indexes', 'index'),
+      tores: both('power counters (Index=T)', 'compteurs de puissance (Index=T)'),
     };
     const list = groups.map((g) => names[g] ?? both(g, g));
     return both(
@@ -297,11 +363,49 @@ export const T = {
     'This Eco-Devices answers the clamps of firmware 2 (Index_TORE_Cons1): the power counters are not read; update it to firmware 3.',
     'Cet Eco-Devices répond les pinces du firmware 2 (Index_TORE_Cons1) : les compteurs de puissance ne sont pas lus ; mettez-le à jour en firmware 3.',
   ),
-  metersNoValue: (list) =>
-    both(
-      `Index(es) listed but without a value (a power counter bound to no clamp in the "Compteurs de puissance" page of the RT2, or erased; a pulse counter at "--"?): ${list.en}. Nothing is published for them.`,
-      `Index listé(s) mais sans valeur (compteur de puissance relié à aucune pince dans la page « Compteurs de puissance » du RT2, ou effacé ; compteur d’impulsions à « -- » ?) : ${list.fr}. Rien n’est publié pour eux.`,
-    ),
+  /**
+   * The listed meters the answer gives no value for, grouped by why (src/rt2/model.js
+   * indexEntry): `Map(why -> [shown codes])`. Nothing is published for them (never 0).
+   */
+  metersNoValue: (byWhy) => {
+    const texts = {
+      absent: both(
+        'key absent from the Index=all answer (a firmware without power counters? "Read now" shows the keys read)',
+        'clé absente de la réponse Index=all (un firmware sans compteurs de puissance ? « Lire maintenant » montre les clés lues)',
+      ),
+      empty: both(
+        'value "--" (a power counter bound to no clamp in the "Compteurs de puissance" page of the RT2, or erased; a pulse counter without a value)',
+        'valeur « -- » (compteur de puissance relié à aucune pince dans la page « Compteurs de puissance » du RT2, ou effacé ; compteur d’impulsions sans valeur)',
+      ),
+      zero: both(
+        'value 0 (the counter counted nothing yet: no clamp bound to it, a clamp facing the wrong way — a power counter counts one direction only —, or a mode not matching the clamp; check its index on the page of the RT2)',
+        'valeur 0 (le compteur n’a encore rien compté : aucune pince reliée, pince dans le mauvais sens — un compteur de puissance ne compte que dans un sens —, ou mode qui ne correspond pas à la pince ; vérifiez son index sur la page du RT2)',
+      ),
+      unbound: both(
+        'value 4294967295 (an entry with nothing behind it)',
+        'valeur 4294967295 (une entrée sans rien derrière)',
+      ),
+      unreadable: both(
+        'value not understood (not a positive number)',
+        'valeur non comprise (pas un nombre positif)',
+      ),
+    };
+    const parts = (lang) =>
+      [...byWhy]
+        .map(
+          ([why, codes]) =>
+            `${listOf(codes)[lang]}${lang === 'fr' ? ' : ' : ': '}${(texts[why] ?? texts.unreadable)[lang]}`,
+        )
+        .join(lang === 'fr' ? ' ; ' : '; ');
+    return both(
+      `Index(es) listed but without a value, nothing published for them: ${parts('en')}.`,
+      `Index listé(s) mais sans valeur, rien n’est publié pour eux : ${parts('fr')}.`,
+    );
+  },
+  toreCommand: both(
+    'The power counters are not in Index=all on this Eco-Devices: read with Index=T instead.',
+    'Les compteurs de puissance ne sont pas dans Index=all sur cet Eco-Devices : lus par Index=T à la place.',
+  ),
   clampsUnlisted: (list) =>
     both(
       `Power counter(s) counting but not listed in Configuration → Power counters: ${list.en}. List them with their mode to bring them in.`,
@@ -434,6 +538,48 @@ export const T = {
         );
       }
       return join(...parts);
+    },
+  },
+  readNow: {
+    paused: (wait) =>
+      both(
+        `The Eco-Devices asked to wait, or the last reads failed: no read before ${wait.en}.`,
+        `L’Eco-Devices a demandé d’attendre, ou les dernières lectures ont échoué : pas de lecture avant ${wait.fr}.`,
+      ),
+    joined: both(
+      'A read was already running: here is what it gave.',
+      'Une lecture était déjà en cours : voici ce qu’elle a donné.',
+    ),
+    unread: both(
+      'The indexes (Index=all) were not read this time.',
+      'Les index (Index=all) n’ont pas été lus cette fois.',
+    ),
+    none: both(
+      'No pulse counter nor power counter listed in the configuration.',
+      'Aucun compteur d’impulsions ni compteur de puissance listé dans la configuration.',
+    ),
+    /** One listed meter: its key, the raw value read and what became of it. */
+    line: ({ shown, key, raw, why, value, unit }) => {
+      const rawText = raw === undefined ? '' : String(raw).slice(0, 24);
+      const whys = {
+        absent: both('key absent from the answer', 'clé absente de la réponse'),
+        empty: both('no value ("--")', 'pas de valeur (« -- »)'),
+        zero: both('0, counts nothing yet', '0, ne compte encore rien'),
+        unbound: both('4294967295, nothing behind it', '4294967295, rien derrière'),
+        unreadable: both('not understood', 'non compris'),
+      };
+      if (why === 'absent')
+        return both(`${shown}: ${whys.absent.en}`, `${shown} : ${whys.absent.fr}`);
+      if (why) {
+        return both(
+          `${shown} (${key}): ${whys[why].en} [${rawText}]`,
+          `${shown} (${key}) : ${whys[why].fr} [${rawText}]`,
+        );
+      }
+      return both(
+        `${shown} (${key}): ${rawText} read, ${number(value, 'en')} ${unit} published`,
+        `${shown} (${key}) : ${rawText} lu, ${number(value, 'fr')} ${unit} publié`,
+      );
     },
   },
   test: {

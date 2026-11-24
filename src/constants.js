@@ -51,6 +51,8 @@ export const READS = {
   TELEINFO: 'Get=TI',
   POSTS: 'Get=P',
   INDEXES: 'Index=all',
+  /** The power counters alone (the 2017 PDF; firmware 3 users of 2022): read when `Index=all` holds none. */
+  TORES: 'Index=T',
 };
 
 /** The pilot-wire modes as Gladys numbers them (PILOT_WIRE_MODE of the core). */
@@ -186,6 +188,7 @@ export const CLAMP_MODES = {
 
 export const ACTIONS = {
   TEST_CONNECTION: 'test_connection',
+  READ_NOW: 'read_now',
   ATTACH: 'attach_devices',
   ACCEPT_HELD: 'accept_held_index',
 };

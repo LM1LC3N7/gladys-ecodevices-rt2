@@ -199,6 +199,64 @@ export function indexKey(code) {
   return `Index_${{ ti: 'TI', tore: 'TORE', c: 'C' }[match[1]]}${match[2]}`;
 }
 
+/** Texts the web interface and the API use for "no value" (status.json: `"--      "`). */
+const EMPTY_TEXTS = new Set(['', '-', '--', '---', '----', 'n/a', 'na', 'null', 'none']);
+
+/**
+ * The entry of a meter in an `Index=all` (or `Index=T`) answer, whatever the
+ * spelling of its key, and why it gives no value when it does not:
+ * `{ key, raw, why }`. The key is `Index_TORE3` (firmware 3; `Index_TI1`,
+ * `Index_C1`), taken too as `Index_TORE_3`, `INDEX_TORE3`, `Index_Tore3` or
+ * `index_tore3` (firmware 2 spelled the clamps `Index_TORE_Cons1`, `Get=all`
+ * spells the pulse counters `INDEX_C1`: a spelling is never a reason to lose
+ * an index). `why`:
+ *   - `absent`: no such key in the answer (a firmware that does not give it);
+ *   - `empty`: null, "", "--" (status.json shows "--" for a power counter
+ *     bound to no clamp, or erased), "N/A";
+ *   - `unbound`: 4294967295 (0xFFFFFFFF), an entry with nothing behind it;
+ *   - `zero`: 0 (a counter that counted nothing yet: no clamp, a clamp facing
+ *     the wrong way, a mode not matching the clamp);
+ *   - `unreadable`: anything else (a text, a negative number, too large);
+ *   - undefined when the entry is an index above 0 (`raw` then a number).
+ */
+export function indexEntry(json, code) {
+  const exact = indexKey(code);
+  if (!exact || json === null || typeof json !== 'object') {
+    return { key: undefined, raw: undefined, why: 'absent' };
+  }
+  const [, prefix, n] = /^(ti|tore|c)(\d{1,2})$/.exec(code);
+  const pattern = new RegExp(`^index_?${prefix}_?${n}$`, 'i');
+  let key;
+  if (Object.hasOwn(json, exact)) key = exact;
+  else key = Object.keys(json).find((k) => pattern.test(k));
+  if (key === undefined) return { key: undefined, raw: undefined, why: 'absent' };
+  const raw = Object.getOwnPropertyDescriptor(json, key)?.value;
+  const text = typeof raw === 'string' ? raw.trim().toLowerCase() : undefined;
+  let why;
+  if (raw === null || raw === undefined || (text !== undefined && EMPTY_TEXTS.has(text))) {
+    why = 'empty';
+  } else if (raw === INDEX_ABSENT || text === String(INDEX_ABSENT)) {
+    why = 'unbound';
+  } else {
+    const number = indexNumber(raw);
+    if (number === undefined) why = 'unreadable';
+    else if (number === 0) why = 'zero';
+  }
+  return { key, raw, why };
+}
+
+/** True when the answer holds at least one power-counter key (firmware 3 spelling). */
+export const hasToreKeys = (json) =>
+  json !== null &&
+  typeof json === 'object' &&
+  Object.keys(json).some((k) => /^index_?tore_?\d/i.test(k));
+
+/** True when the answer spells the clamps as firmware 2 did (`Index_TORE_Cons1`): no power counter in it. */
+export const isFirmware2Indexes = (json) =>
+  json !== null &&
+  typeof json === 'object' &&
+  Object.keys(json).some((k) => /^index_?tore_?(cons|dist)\d/i.test(k));
+
 const round3 = (value) => Math.round(value * 1000) / 1000;
 
 /**

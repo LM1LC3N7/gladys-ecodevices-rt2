@@ -61,6 +61,14 @@ kVAh; Chris_eco's `Index=T` of 2022-06-17), the Jeedom community topics 87420
 pyecodevices_rt2 (MIT) and the Home Assistant integration ecodevices_rt2
 (Apache-2.0) for the keys they read, and cce66's answers in community topic
 11448 (his `Index=all`, `Get=R|FP|TI|P` and `status.json`, firmware 3.00.04).
+Read again on 2026-11-24 for the power counters without a value
+(test/tore-variants.test.js lists what each source says): GCE wiki "API EDRT"
+(API v2.00.33, 2018: `Index=all` "retourne tous les index", `Index=T` the "16
+tores, même non câblées", no key name documented), GCE forum 15493 pages 1-2
+(unidirectional counters, 0 while nothing feeds them, `Index=T` answering
+`Index_TORE1-20`), Jeedom community 87420 (`Index_TOREx` on firmware 3, an
+underscore before the number on firmware 2), HACF forum 48863 (`INDEX_C1` in
+`Get=all`), domoticz EcoDevices.cpp (reads status.xml, not the JSON API).
 
 Safety rules (see TODO.md "Decisions"): relays read only unless listed;
 pilot wire Off and Frost protection (and switching a listed relay off) are

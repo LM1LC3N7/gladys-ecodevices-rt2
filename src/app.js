@@ -87,8 +87,10 @@ import { Rt2Error, errorReason } from './rt2/http.js';
 import {
   checkEnvelope,
   fixedCodes,
-  indexKey,
+  hasToreKeys,
+  indexEntry,
   indexNumber,
+  isFirmware2Indexes,
   kindOf,
   meterOf,
   numberOf,
@@ -261,8 +263,13 @@ export class Rt2App {
     this.unitChanged = new Set();
     /** Clamp indexes read above 0, not offered (unit to confirm). */
     this.unlistedClamps = [];
+    /** The listed meters without a value in the last indexes read: [{ code, why }]. */
     this.metersNoValue = [];
     this.firmware2 = false;
+    /** True when the power counters came from `Index=T` (not in `Index=all` on that box). */
+    this.toreCommand = false;
+    /** The last indexes read, per listed meter ("Read now"): [{ code, key, raw, why, value, feature }]. */
+    this.indexReport = undefined;
     /** The monotonic time of the last read an Eco-Devices RT2 answered (its product). */
     this.productAt = undefined;
     /** The first click of "Accept the held index": { at, listedAt, list, generation }. */
@@ -944,10 +951,10 @@ export class Rt2App {
   }
 
   /** One round at a time: a tick during a round joins it. */
-  tick({ evenRefused = false } = {}) {
+  tick({ evenRefused = false, now = false } = {}) {
     if (!this.running) {
       const generation = this.generation;
-      this.running = this.read({ evenRefused })
+      this.running = this.read({ evenRefused, now })
         .catch((err) => this.recover(err, generation))
         .finally(() => {
           this.running = undefined;
@@ -967,14 +974,16 @@ export class Rt2App {
     this.schedule();
   }
 
-  async read({ evenRefused }) {
+  async read({ evenRefused, now = false }) {
     const generation = this.generation;
     const client = this.client;
     if (!client || (!evenRefused && this.refusedApplies())) {
       return;
     }
     const mono = this.monotonic();
-    if (mono < this.dueAt(mono)) {
+    // "Read now" skips the wait of the poll interval, never a pause (the Eco-Devices asked
+    // to wait, or the reads fail: the pace it imposed).
+    if (mono < this.dueAt(mono) && !(now && this.pauseLeft(mono) === 0)) {
       this.schedule();
       return;
     }
@@ -1167,7 +1176,20 @@ export class Rt2App {
     const inputs = await secondary(READS.INPUTS, 'inputs');
     put(inputs.json, KINDS.INPUT, inputs.at);
     const indexes = await secondary(READS.INDEXES, 'indexes');
-    for (const target of this.metersOf(indexes.json, indexes.at)) {
+    // Power counters listed but none in `Index=all` (a firmware answering them to `Index=T`
+    // only: the command of the 2017 PDF and of the firmware 3 users of 2022): one more read,
+    // within the budget of the round; its failure leaves them unread, nothing else.
+    let tores;
+    if (
+      indexes.json &&
+      this.config.clamps.size > 0 &&
+      !hasToreKeys(indexes.json) &&
+      !isFirmware2Indexes(indexes.json)
+    ) {
+      tores = await secondary(READS.TORES, 'tores');
+    }
+    // `null`: `Index=T` tried and not answered (the counters unread, never "absent").
+    for (const target of this.metersOf(indexes.json, indexes.at, tores && (tores.json ?? null))) {
       targets.set(target.code, target);
     }
     if ([...codes].some((c) => kindOf(c) === KINDS.PILOT)) {
@@ -1197,9 +1219,13 @@ export class Rt2App {
    * The meters of an `Index=all` answer: a teleinformation index read above 0 (the API
    * answers them all, wired or not), a power counter or a pulse counter of the configuration,
    * and any meter with a device created (unread: no value). `json` undefined: none read this
-   * time. A power counter above 0 but not listed is noted for the status (`unlistedClamps`).
+   * time. `tores`: the `Index=T` answer when `Index=all` held no power counter (undefined
+   * otherwise, null when it was not answered: the power counters unread). A power counter
+   * above 0 but not listed is noted for the status (`unlistedClamps`); a listed meter
+   * without a value is noted with why (`metersNoValue`), and every listed meter with what
+   * was read (`indexReport`, for "Read now").
    */
-  metersOf(json, at) {
+  metersOf(json, at, tores) {
     const created = new Set(
       this.createdDevices()
         .map((d) => this.parseId(d.external_id))
@@ -1213,23 +1239,38 @@ export class Rt2App {
     for (let n = 1; n <= LIMITS_RT2.counters; n += 1) codes.push(`c${n}`);
     const unlisted = [];
     const noValue = [];
+    const report = [];
     // Firmware 2 answers `Index_TORE_Cons1-4`, `Index_TORE_Dist1-4` and `Index_TORE5-16`
     // (the clamps themselves, not the power counters of firmware 3): nothing is read from it.
-    const firmware2 = json ? Object.hasOwn(json, 'Index_TORE_Cons1') : false;
+    const firmware2 = json ? isFirmware2Indexes(json) : false;
     for (const code of codes) {
+      const isTore = code.startsWith('tore');
       const listed = code.startsWith('c')
         ? this.config.counters.has(code)
-        : code.startsWith('tore')
+        : isTore
           ? this.config.clamps.has(code)
           : true;
-      const raw =
-        json && !(firmware2 && code.startsWith('tore'))
-          ? Object.getOwnPropertyDescriptor(json, indexKey(code))?.value
-          : undefined;
-      const meter = meterOf(code, raw, this.config.counters, this.config.clamps);
-      if (code.startsWith('tore') && !listed && indexNumber(raw) > 0) unlisted.push(code);
-      if (listed && !code.startsWith('ti') && json && meter?.value === undefined) {
-        noValue.push(code);
+      const source = isTore && tores ? tores : json;
+      const entry =
+        isTore && tores === null
+          ? { key: undefined, raw: undefined, why: 'unread' }
+          : json && !(firmware2 && isTore)
+            ? indexEntry(source, code)
+            : { key: undefined, raw: undefined, why: 'absent' };
+      const meter = meterOf(code, entry.raw, this.config.counters, this.config.clamps);
+      if (isTore && !listed && indexNumber(entry.raw) > 0) unlisted.push(code);
+      if (listed && !code.startsWith('ti') && json) {
+        if (meter?.value === undefined && entry.why !== 'unread') {
+          noValue.push({ code, why: entry.why ?? 'unreadable' });
+        }
+        report.push({
+          code,
+          key: entry.key,
+          raw: entry.raw,
+          why: entry.why,
+          value: meter?.value,
+          feature: meter?.feature,
+        });
       }
       const wanted = code.startsWith('ti')
         ? (meter?.value !== undefined && json !== undefined) || created.has(code)
@@ -1248,6 +1289,8 @@ export class Rt2App {
       this.unlistedClamps = unlisted;
       this.metersNoValue = noValue;
       this.firmware2 = firmware2;
+      this.toreCommand = tores !== undefined;
+      this.indexReport = report;
     }
     return out;
   }
@@ -1368,10 +1411,10 @@ export class Rt2App {
       parts.push(T.extensionErrors(listOf(this.config.extensionErrors)));
     }
     if (this.config.counterErrors.length > 0) {
-      parts.push(T.counterErrors(listOf(this.config.counterErrors)));
+      parts.push(T.counterErrors(this.config.counterErrors));
     }
     if (this.config.clampErrors.length > 0) {
-      parts.push(T.clampErrors(listOf(this.config.clampErrors)));
+      parts.push(T.clampErrors(this.config.clampErrors));
     }
     if (this.round?.unread.length > 0) {
       parts.push(T.groupsUnread(this.round.unread));
@@ -1410,8 +1453,14 @@ export class Rt2App {
     const unknown = [...this.unknownZones].filter((code) => this.model.has(code)).sort();
     if (unknown.length > 0) parts.push(T.zonesNumeric(listOf(unknown.map(shownCode))));
     if (this.firmware2) parts.push(T.firmware2);
+    if (this.toreCommand) parts.push(T.toreCommand);
     if (this.metersNoValue.length > 0) {
-      parts.push(T.metersNoValue(listOf(this.metersNoValue.map(shownCode))));
+      const byWhy = new Map();
+      for (const { code, why } of this.metersNoValue) {
+        if (!byWhy.has(why)) byWhy.set(why, []);
+        byWhy.get(why).push(shownCode(code));
+      }
+      parts.push(T.metersNoValue(byWhy));
     }
     if (this.unlistedClamps.length > 0) {
       parts.push(T.clampsUnlisted(listOf(this.unlistedClamps.map(shownCode))));
@@ -2132,6 +2181,64 @@ export class Rt2App {
     this.timers.clearTimeout(handle);
     if (result === 'slow') return T.test.slow;
     return this.lastMessage ?? T.connecting;
+  }
+
+  /**
+   * "Read now": one round at once, whatever the poll interval (never during a pause the
+   * Eco-Devices imposed, never two rounds at once: a click during a round reports that
+   * round), then the status and, for each listed pulse counter and power counter, the key
+   * read, the raw value and what became of it. One click per 10 s, shared with "Test the
+   * connection"; answers within 25 s (Gladys waits 30 s).
+   */
+  async readNow() {
+    const missing = this.configMessage();
+    if (missing) return missing;
+    if (!this.client) return T.connecting;
+    const mono = this.monotonic();
+    // A round runs: joined (never a second one), reported when it ends; the cooldown is for
+    // the clicks that would start one.
+    const joined = this.running !== undefined;
+    if (!joined) {
+      if (mono - this.lastTestAt < TIMINGS.testCooldown) {
+        return join(this.lastMessage ?? T.connecting, this.indexReportMessage());
+      }
+      this.lastTestAt = mono;
+      const pause = this.pauseLeft(mono);
+      if (pause > 0) return join(T.readNow.paused(age(pause)), this.lastMessage ?? T.connecting);
+    }
+    let handle;
+    const budget = new Promise((resolve) => {
+      handle = this.timers.setTimeout(() => resolve('slow'), TIMINGS.testBudget);
+    });
+    const result = await Promise.race([
+      this.tick({ evenRefused: true, now: true }).then(() => 'done'),
+      budget,
+    ]);
+    this.timers.clearTimeout(handle);
+    if (result === 'slow') return T.test.slow;
+    return join(
+      joined ? T.readNow.joined : undefined,
+      this.lastMessage ?? T.connecting,
+      this.indexReportMessage(),
+    );
+  }
+
+  /** What the last indexes read gave for each listed meter (one line each), for "Read now". */
+  indexReportMessage() {
+    if (this.config.counters.size === 0 && this.config.clamps.size === 0) return T.readNow.none;
+    if (this.round?.unread.includes('indexes')) return T.readNow.unread;
+    if (!this.indexReport) return undefined;
+    const lines = this.indexReport.map((entry) =>
+      T.readNow.line({
+        shown: shownCode(entry.code),
+        key: entry.key,
+        raw: entry.raw,
+        why: entry.why,
+        value: entry.value,
+        unit: [F.WATER, F.GAS].includes(entry.feature) ? 'm³' : 'kWh',
+      }),
+    );
+    return both(lines.map((l) => l.en).join('\n'), lines.map((l) => l.fr).join('\n'));
   }
 
   // --- Commands --------------------------------------------------------------------

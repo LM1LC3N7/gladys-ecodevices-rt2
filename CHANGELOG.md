@@ -10,6 +10,34 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- "Read now" button in the configuration screen: one read at once, without
+  waiting for the poll interval (never during a pause the Eco-Devices asked
+  for, never two reads at once: a click during a read reports that one; one
+  click per 10 s, shared with "Test the connection"), then the status and,
+  for each listed pulse counter and power counter, the key read, the raw
+  value and what was published (cce66, t/11448 #27).
+- Power counters absent from `Index=all` (no `Index_TORE` key at all) are
+  asked with `Index=T` (the command of the GCE documentation of 2017 and of
+  the firmware 3 users of 2022), within the budget of the round; the status
+  says so.
+
+### Changed
+
+- The keys of the indexes are found whatever their spelling (`Index_TORE1`,
+  `Index_TORE_1`, `INDEX_TORE1`, `INDEX_C1`), never mistaken for another
+  number; `null`, `""`, `"--"`, `"N/A"` are "no value".
+- A listed counter without a value is named in the status with why: key
+  absent from the answer, value "--" (bound to no clamp, or erased), value 0
+  (counted nothing yet: no clamp, a clamp facing the wrong way, a mode not
+  matching the clamp), 4294967295 (nothing behind it), or not understood.
+- Each refused entry of "Pulse counters" and "Power counters" is named in
+  the status with what is wrong, in French and English ("T1:EDF": "EDF" is
+  not a mode (consumption, production, injection, drawn); "C2": what it
+  measures is missing (water, gas, electricity)) (cce66, t/11448 #25, #27).
+  The SDK offers no validation message under a field: the status carries it.
+
 ## [0.3.0] - 2026-11-20
 
 ### Added

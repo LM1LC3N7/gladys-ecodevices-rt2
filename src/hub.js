@@ -253,6 +253,21 @@ export class Rt2Hub {
     );
   }
 
+  /** "Read now": each Eco-Devices used, at once (each has its own lane). */
+  async readNow() {
+    const slots = this.usedSlots;
+    if (slots.length <= 1) return this.controllers.get(slots[0] ?? 1).readNow();
+    const answers = await Promise.all(slots.map((slot) => this.controllers.get(slot).readNow()));
+    return joinLines(
+      answers.map((answer, i) =>
+        both(
+          `Eco-Devices #${slots[i]}: ${answer.en}`,
+          `Eco-Devices n°${slots[i]} : ${answer.fr ?? answer.en}`,
+        ),
+      ),
+    );
+  }
+
   /** "Attach the devices" of the Eco-Devices chosen (the first one when not given). */
   attach(fields = {}) {
     const slot = Number(fields?.box ?? 1);

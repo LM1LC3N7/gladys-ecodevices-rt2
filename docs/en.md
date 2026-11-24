@@ -40,7 +40,17 @@ sensors (temperature, humidity, luminosity).
    Then save.
 
 3. "Test the connection" reads the Eco-Devices at once (once an interval has
-   passed since the last read) and shows what it found.
+   passed since the last read) and shows what it found. "Read now" reads
+   without waiting for the interval (never during a pause the Eco-Devices
+   asked for, never two reads at once: a click during a read reports that
+   one; one click per 10 s) and adds, for each listed pulse counter and
+   power counter, the key read in the answer, the raw value and what was
+   published (e.g. `TORE1 (Index_TORE1): 271232 read, 271.232 kWh published`,
+   `TORE2 (Index_TORE2): no value ("--")`, `TORE3: key absent from the
+answer`). An entry mistyped in "Pulse counters" or "Power counters" is
+   named in the status with what is wrong ("T1:EDF": "EDF" is not a mode…;
+   "C2": what it measures is missing…); the other entries of the field are
+   kept.
 4. In Discover, create the devices you want. A listed relay comes as a
    switch (or a light); the others come **read only** ("State (read only)"):
    Gladys shows their state, nothing can switch them.
@@ -168,9 +178,18 @@ documentation: "index en Wh"; the values seen on three real RT2 are
 thousands of kWh) and published in kWh; not compared with the page of a real
 RT2 yet: **compare the first value published with the "Compteurs de
 puissance" page** and tell us. A counter counting but not listed is named in
-the status; a listed counter without a value (0 or "--": not bound to a
-clamp yet, or erased) is not published, is not counted among the indexes
-read and is named in the status; a counter whose mode you change gets a new
+the status; a listed counter without a value is not published, is not
+counted among the indexes read and is named in the status **with why**: key
+absent from the answer (a firmware that does not give the power counters in
+`Index=all`: they are then asked with `Index=T`, the command of the 2017
+documentation, and the status says so), value "--" (a counter bound to no
+clamp in the "Compteurs de puissance" page, or erased), value 0 (the counter
+counted nothing yet: no clamp bound, a clamp facing the wrong way — a power
+counter counts one direction only, GCE forum June 2022 —, or a mode not
+matching the clamp; a kVAh unit counts too, but the API does not tell),
+value 4294967295 (an entry with nothing behind it), or a value not
+understood. The key is read whatever its spelling (`Index_TORE1`,
+`Index_TORE_1`, `INDEX_TORE1`), never mistaken for another; a counter whose mode you change gets a new
 feature, which starts from the first value read (if you then go back to the
 old mode, its old feature starts again from its last value in Gladys: what
 accumulated meanwhile may pass as a jump covered by the time); a counter

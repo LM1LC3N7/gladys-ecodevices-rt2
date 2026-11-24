@@ -43,6 +43,17 @@ leurs capteurs X-THL (température, humidité, luminosité).
 
 3. « Tester la connexion » lit l’Eco-Devices tout de suite (une fois un
    intervalle passé depuis la dernière lecture) et montre ce qu’il a trouvé.
+   « Lire maintenant » lit sans attendre l’intervalle (jamais pendant une
+   pause demandée par l’Eco-Devices, jamais deux lectures à la fois : un clic
+   pendant une lecture rapporte celle-là ; un clic par 10 s) et ajoute, pour
+   chaque compteur d’impulsions et compteur de puissance listé, la clé lue
+   dans la réponse, la valeur brute et ce qui a été publié (par ex.
+   `TORE1 (Index_TORE1) : 271232 lu, 271,232 kWh publié`,
+   `TORE2 (Index_TORE2) : pas de valeur (« -- »)`, `TORE3 : clé absente de la
+réponse`). Une entrée mal saisie dans « Compteurs d’impulsions » ou
+   « Compteurs de puissance » est citée dans l’état avec ce qui cloche
+   (« T1:EDF » : « EDF » n’est pas un mode… ; « C2 » : il manque ce qu’il
+   mesure…) ; les autres entrées du champ sont gardées.
 4. Dans Découverte, créez les appareils voulus. Un relais listé arrive en
    interrupteur (ou en lumière) ; les autres arrivent **en lecture seule**
    (« État (lecture seule) ») : Gladys montre leur état, rien ne peut les
@@ -180,9 +191,19 @@ Wh (documentation GCE : « index en Wh » ; les valeurs vues sur trois vrais
 RT2 sont des milliers de kWh) et publié en kWh ; aucune comparaison avec la
 page d’un vrai RT2 encore : **comparez la première valeur publiée à la page
 « Compteurs de puissance »** et dites-nous. Un compteur qui compte mais n’est
-pas listé est nommé dans l’état ; un compteur listé sans valeur (0 ou « -- » :
-pas encore relié à une pince, ou effacé) n’est pas publié, ne compte pas
-dans les index lus et est nommé dans l’état ; un compteur dont vous changez
+pas listé est nommé dans l’état ; un compteur listé sans valeur n’est pas
+publié, ne compte pas dans les index lus et est nommé dans l’état **avec la
+raison** : clé absente de la réponse (un firmware qui ne donne pas les
+compteurs de puissance dans `Index=all` : ils sont alors demandés par
+`Index=T`, la commande de la documentation de 2017, et l’état le dit),
+valeur « -- » (compteur relié à aucune pince dans la page « Compteurs de
+puissance », ou effacé), valeur 0 (le compteur n’a encore rien compté :
+aucune pince reliée, pince dans le mauvais sens — un compteur de puissance
+ne compte que dans un sens, forum GCE juin 2022 —, ou mode qui ne
+correspond pas à la pince ; une unité kVAh compte aussi, mais l’API ne la
+dit pas), valeur 4294967295 (entrée sans rien derrière), ou valeur non
+comprise. La clé est lue quelle que soit sa graphie (`Index_TORE1`,
+`Index_TORE_1`, `INDEX_TORE1`), jamais confondue avec une autre ; un compteur dont vous changez
 le mode reçoit une nouvelle fonctionnalité, qui repart de la première valeur
 lue (si vous revenez ensuite à l’ancien mode, son ancienne fonctionnalité
 repart de sa dernière valeur dans Gladys : un écart accumulé entre-temps

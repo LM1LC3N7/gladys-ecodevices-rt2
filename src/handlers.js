@@ -18,6 +18,7 @@ export function registerHandlers(gladys, app, logger) {
 
   // Configuration screen buttons.
   gladys.onAction(ACTIONS.TEST_CONNECTION, () => app.testConnection());
+  gladys.onAction(ACTIONS.READ_NOW, () => app.readNow());
   gladys.onAction(ACTIONS.ATTACH, (fields) => app.attach(fields));
   gladys.onAction(ACTIONS.ACCEPT_HELD, () => app.acceptHeld());
 

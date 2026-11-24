@@ -454,6 +454,18 @@
       "timeout_seconds": 30
     },
     {
+      "key": "read_now",
+      "label": {
+        "en": "Read now",
+        "fr": "Lire maintenant"
+      },
+      "description": {
+        "en": "Reads the Eco-Devices at once, without waiting for the poll interval, and shows what the indexes answer gave for each listed pulse counter and power counter (its key, the raw value and what was published). One click per 10 s; never during a pause the Eco-Devices asked for.",
+        "fr": "Lit l’Eco-Devices tout de suite, sans attendre l’intervalle de lecture, et montre ce que la réponse des index a donné pour chaque compteur d’impulsions et compteur de puissance listé (sa clé, la valeur brute et ce qui a été publié). Un clic par 10 s ; jamais pendant une pause demandée par l’Eco-Devices."
+      },
+      "timeout_seconds": 30
+    },
+    {
       "key": "accept_held_index",
       "label": {
         "en": "Accept the held index",

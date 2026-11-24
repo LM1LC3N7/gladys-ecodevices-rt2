@@ -188,7 +188,7 @@ const plain = (entry) =>
  * kept: the order typed is no choice); given twice the same, kept once.
  * `entries`: [code, shown, settings, raw] in the order typed.
  */
-function dedupe(entries, errors) {
+function dedupe(entries, errors, details) {
   const out = new Map();
   const shownOf = new Map();
   const twice = new Set();
@@ -204,6 +204,7 @@ function dedupe(entries, errors) {
   for (const code of twice) {
     out.delete(code);
     errors.push(`${shownOf.get(code)} ×2`);
+    details?.push({ entry: shownOf.get(code), reason: 'twice' });
   }
   return out;
 }
@@ -221,22 +222,42 @@ const counterTypeOf = (word) =>
 export function parseCounters(raw) {
   const entries = [];
   const errors = [];
+  const details = [];
   for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
     const text = plain(entry);
     if (text === '') continue;
-    const match = /^c(\d{1,2})[:=]([a-z]+)(?::([a-z0-9]+))?$/.exec(text);
+    const shown = entry.trim().slice(0, 24);
+    // The words as typed (accents kept), for the message.
+    const typed = entry
+      .trim()
+      .split(/[:=]/)
+      .map((w) => w.trim().slice(0, 16));
+    const match = /^c(\d{1,2})(?:[:=]([a-z]+))?(?::([a-z0-9]+))?$/.exec(text);
     const n = Number(match?.[1]);
-    const typeName = match ? counterTypeOf(match[2]) : undefined;
+    const typeName = match?.[2] !== undefined ? counterTypeOf(match[2]) : undefined;
     const type = typeName ? COUNTER_TYPES[typeName] : undefined;
     const unit = match?.[3] ?? type?.units[0];
-    if (!type || n < 1 || n > LIMITS_RT2.counters || !type.units.includes(unit)) {
-      errors.push(entry.trim().slice(0, 24));
+    // The first thing wrong with the entry, as the user must fix it.
+    const reason = !match
+      ? 'format'
+      : n < 1 || n > LIMITS_RT2.counters
+        ? 'number'
+        : match[2] === undefined
+          ? 'missingType'
+          : !type
+            ? 'type'
+            : !type.units.includes(unit)
+              ? 'unit'
+              : undefined;
+    if (reason) {
+      errors.push(shown);
+      details.push({ entry: shown, reason, word: typed[1], unit: typed[2] });
       continue;
     }
     entries.push([`c${n}`, `C${n}`, { type: typeName, unit }]);
   }
-  const counters = dedupe(entries, errors);
-  return { counters, errors: errors.slice(0, 10) };
+  const counters = dedupe(entries, errors, details);
+  return { counters, errors: errors.slice(0, 10), details: details.slice(0, 10) };
 }
 
 /**
@@ -248,9 +269,15 @@ export function parseCounters(raw) {
 export function parseClamps(raw) {
   const entries = [];
   const errors = [];
+  const details = [];
   for (const entry of String(raw ?? '').split(/[,;\n]+/)) {
     const text = plain(entry);
     if (text === '') continue;
+    const shown = entry.trim().slice(0, 24);
+    const typed = entry
+      .trim()
+      .split(/[:=]/)
+      .map((w) => w.trim().slice(0, 16));
     const match = /^(?:t|tore)(\d{1,2})(?:[:=]([a-z]+))?$/.exec(text);
     const n = Number(match?.[1]);
     const mode = match
@@ -258,14 +285,22 @@ export function parseClamps(raw) {
         ? 'consumption'
         : Object.keys(CLAMP_MODES).find((m) => CLAMP_MODES[m].aliases.includes(match[2]))
       : undefined;
-    if (!mode || n < 1 || n > LIMITS_RT2.tore) {
-      errors.push(entry.trim().slice(0, 24));
+    const reason = !match
+      ? 'format'
+      : n < 1 || n > LIMITS_RT2.tore
+        ? 'number'
+        : !mode
+          ? 'mode'
+          : undefined;
+    if (reason) {
+      errors.push(shown);
+      details.push({ entry: shown, reason, word: typed[1] });
       continue;
     }
     entries.push([`tore${n}`, `TORE${n}`, { mode }]);
   }
-  const clamps = dedupe(entries, errors);
-  return { clamps, errors: errors.slice(0, 10) };
+  const clamps = dedupe(entries, errors, details);
+  return { clamps, errors: errors.slice(0, 10), details: details.slice(0, 10) };
 }
 
 const number = (value) =>
@@ -309,9 +344,9 @@ export function normalizeConfig(raw = {}) {
     extensions: extensions.codes,
     extensionErrors: extensions.errors,
     counters: counters.counters,
-    counterErrors: counters.errors,
+    counterErrors: counters.details,
     clamps: clamps.clamps,
-    clampErrors: clamps.errors,
+    clampErrors: clamps.details,
     allowHeatingModes: flag(raw?.allow_heating_modes, DEFAULTS.allow_heating_modes),
     // Set by src/hub.js: the address of an earlier slot (one box, one lane of requests).
     duplicateOf: Number.isInteger(raw?.duplicate_of) ? raw.duplicate_of : undefined,

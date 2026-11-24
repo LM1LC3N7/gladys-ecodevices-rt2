@@ -187,13 +187,14 @@ test('after his factory reset (status.json 2026-11-14, every power counter at "-
     /: 10 relay\(s\), 12 input\(s\), 1 index\(es\)\./,
     'TI1 only: no value, no index counted',
   );
+  // Said with why, each: 0 (counted nothing yet) and 4294967295 (nothing behind it).
   assert.match(
     message(gladys),
-    /Index\(es\) listed but without a value \([^)]*Compteurs de puissance[^)]*\): TORE1, TORE2\./,
+    /Index\(es\) listed but without a value, nothing published for them: TORE1: value 0 \([^)]*clamp[^)]*\); TORE2: value 4294967295/,
   );
   assert.match(
     message(gladys, 'fr'),
-    /Index listé\(s\) mais sans valeur [^:]+: TORE1, TORE2\. Rien n’est publié/,
+    /Index listé\(s\) mais sans valeur, rien n’est publié pour eux : TORE1 : valeur 0 \([^)]*pince[^)]*\) ; TORE2 : valeur 4294967295/,
   );
   // The "--" strings of his status.json, if `Index=all` ever answered them: the same.
   const dashes = { ...INDEX_ALL };
@@ -207,8 +208,8 @@ test('after his factory reset (status.json 2026-11-14, every power counter at "-
   assert.deepEqual(second.states(TORE(1)), []);
   assert.match(
     message(second.gladys),
-    /without a value [^:]+: TORE1, C2\./,
-    'a pulse counter at 0 too',
+    /without a value, nothing published for them: TORE1: value "--" \(a power counter bound to no clamp[^)]*\); C2: value 0/,
+    'the "--" of the RT2 said as such, a pulse counter at 0 too',
   );
   second.app.stop();
   app.stop();
