@@ -257,7 +257,18 @@ export class Rt2Hub {
   async readNow() {
     const slots = this.usedSlots;
     if (slots.length <= 1) return this.controllers.get(slots[0] ?? 1).readNow();
-    const answers = await Promise.all(slots.map((slot) => this.controllers.get(slot).readNow()));
+    // One Eco-Devices failing never hides the others' answers.
+    const settled = await Promise.allSettled(
+      slots.map((slot) => this.controllers.get(slot).readNow()),
+    );
+    const answers = settled.map((r) =>
+      r.status === 'fulfilled'
+        ? r.value
+        : both(
+            `error (${r.reason?.message ?? r.reason})`,
+            `erreur (${r.reason?.message ?? r.reason})`,
+          ),
+    );
     return joinLines(
       answers.map((answer, i) =>
         both(

@@ -42,12 +42,17 @@ sensors (temperature, humidity, luminosity).
 3. "Test the connection" reads the Eco-Devices at once (once an interval has
    passed since the last read) and shows what it found. "Read now" reads
    without waiting for the interval (never during a pause the Eco-Devices
-   asked for, never two reads at once: a click during a read reports that
-   one; one click per 10 s) and adds, for each listed pulse counter and
-   power counter, the key read in the answer, the raw value and what was
-   published (e.g. `TORE1 (Index_TORE1): 271232 read, 271.232 kWh published`,
-   `TORE2 (Index_TORE2): no value ("--")`, `TORE3: key absent from the
-answer`). An entry mistyped in "Pulse counters" or "Power counters" is
+   asked for nor after failed reads, never two reads at once: a click during
+   a read reports that one; one click per 10 s) and adds, for each listed
+   pulse counter and power counter, the key read in the answer, the raw
+   value, the value converted and what became of it: published, held back
+   (with the value Gladys keeps), not published for lack of a device, of the
+   feature on the device ("Update"), of an unchanged unit or of /data (e.g.
+   `TORE1 (Index_TORE1): 271232 read, converted to 271.232 kWh, published`,
+   `TORE2 (Index_TORE2): no value ("--")`,
+   `TORE3: key absent from the answer`). When the read of the click did not
+   succeed (key refused, a click within 10 s), the report is the one of the
+   last read, with its age. An entry mistyped in "Pulse counters" or "Power counters" is
    named in the status with what is wrong ("T1:EDF": "EDF" is not a mode…;
    "C2": what it measures is missing…); the other entries of the field are
    kept.
@@ -188,15 +193,18 @@ counted nothing yet: no clamp bound, a clamp facing the wrong way — a power
 counter counts one direction only, GCE forum June 2022 —, or a mode not
 matching the clamp; a kVAh unit counts too, but the API does not tell),
 value 4294967295 (an entry with nothing behind it), or a value not
-understood. The key is read whatever its spelling (`Index_TORE1`,
-`Index_TORE_1`, `INDEX_TORE1`), never mistaken for another; a counter whose mode you change gets a new
+understood. The key is read whatever its case (`Index_TORE1`,
+`INDEX_TORE1`), never taken for another number; `Index_TORE_1` (an
+underscore before the number) is the spelling of the clamps of firmware 2,
+never a power counter; a counter whose mode you change gets a new
 feature, which starts from the first value read (if you then go back to the
 old mode, its old feature starts again from its last value in Gladys: what
 accumulated meanwhile may pass as a jump covered by the time); a counter
 erased in the RT2 is a drop, held until your two clicks. An RT2 on
-firmware 2 (answering `Index_TORE_Cons1`…) has no power counter: nothing is
-read from its `Index_TORE`, not even `Index_TORE5` to `16`, and the status
-says so. A pulse counter
+firmware 2 (answering `Index_TORE_Cons1`, `Index_TORE_Dist1` or
+`Index_TORE_<n>`, in `Index=all` as in `Index=T`) has no power counter:
+nothing is read from its `Index_TORE`, not even `Index_TORE5` to `16`, and
+the status says so. A pulse counter
 is read in the unit you give: compare the first value published with the
 meter. A counter whose **type** you change gets a new feature, which starts
 from the first value read. If you change its **unit** after its index was

@@ -130,11 +130,25 @@ test('each command to its own box; an index to its own device', async () => {
 });
 
 test('the test button and Accept answer for each box; Attach goes to the slot chosen', async () => {
-  const { gladys, start, wait, hub } = await hubSetup();
+  const { gladys, start, wait, hub, act } = await hubSetup();
   await start();
   await wait(10_000);
   const answer = await gladys.fake.action('test_connection', {});
   assert.match(answer.data.message.en, /Eco-Devices #1: .*\nEco-Devices #2: /s);
+  await wait(11_000);
+  const read = await act(gladys.fake.action('read_now', {}));
+  assert.match(read.data.message.en, /Eco-Devices #1: .*\nEco-Devices #2: /s);
+  // One Eco-Devices failing (a bug): the other still answers.
+  hub.controllers.get(2).readNow = async () => {
+    throw new Error('boom');
+  };
+  await wait(11_000);
+  const partial = await act(gladys.fake.action('read_now', {}));
+  assert.match(
+    partial.data.message.en,
+    /Eco-Devices #1: (?!error).*\nEco-Devices #2: error \(boom\)/s,
+  );
+  assert.match(partial.data.message.fr, /Eco-Devices n°2 : erreur \(boom\)/);
   const accept = await gladys.fake.action('accept_held_index', {});
   assert.match(accept.data.message.en, /Eco-Devices #1: No index.*\nEco-Devices #2: No index/s);
   const attach = await gladys.fake.action('attach_devices', { box: '2' });

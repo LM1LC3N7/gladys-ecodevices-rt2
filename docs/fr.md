@@ -44,13 +44,18 @@ leurs capteurs X-THL (température, humidité, luminosité).
 3. « Tester la connexion » lit l’Eco-Devices tout de suite (une fois un
    intervalle passé depuis la dernière lecture) et montre ce qu’il a trouvé.
    « Lire maintenant » lit sans attendre l’intervalle (jamais pendant une
-   pause demandée par l’Eco-Devices, jamais deux lectures à la fois : un clic
-   pendant une lecture rapporte celle-là ; un clic par 10 s) et ajoute, pour
-   chaque compteur d’impulsions et compteur de puissance listé, la clé lue
-   dans la réponse, la valeur brute et ce qui a été publié (par ex.
-   `TORE1 (Index_TORE1) : 271232 lu, 271,232 kWh publié`,
-   `TORE2 (Index_TORE2) : pas de valeur (« -- »)`, `TORE3 : clé absente de la
-réponse`). Une entrée mal saisie dans « Compteurs d’impulsions » ou
+   pause demandée par l’Eco-Devices ni après des lectures en échec, jamais
+   deux lectures à la fois : un clic pendant une lecture rapporte celle-là ;
+   un clic par 10 s) et ajoute, pour chaque compteur d’impulsions et compteur
+   de puissance listé, la clé lue dans la réponse, la valeur brute, la valeur
+   convertie et ce qu’elle est devenue : publiée, retenue (avec la valeur que
+   Gladys garde), non publiée faute d’appareil créé, de fonctionnalité sur
+   l’appareil (« Mettre à jour »), d’unité inchangée ou de /data (par ex.
+   `TORE1 (Index_TORE1) : 271232 lu, converti en 271,232 kWh, publié`,
+   `TORE2 (Index_TORE2) : pas de valeur (« -- »)`,
+   `TORE3 : clé absente de la réponse`). Si la lecture du clic n’a pas abouti
+   (clé refusée, clic dans les 10 s), le rapport est celui de la dernière
+   lecture, daté. Une entrée mal saisie dans « Compteurs d’impulsions » ou
    « Compteurs de puissance » est citée dans l’état avec ce qui cloche
    (« T1:EDF » : « EDF » n’est pas un mode… ; « C2 » : il manque ce qu’il
    mesure…) ; les autres entrées du champ sont gardées.
@@ -202,15 +207,19 @@ aucune pince reliée, pince dans le mauvais sens — un compteur de puissance
 ne compte que dans un sens, forum GCE juin 2022 —, ou mode qui ne
 correspond pas à la pince ; une unité kVAh compte aussi, mais l’API ne la
 dit pas), valeur 4294967295 (entrée sans rien derrière), ou valeur non
-comprise. La clé est lue quelle que soit sa graphie (`Index_TORE1`,
-`Index_TORE_1`, `INDEX_TORE1`), jamais confondue avec une autre ; un compteur dont vous changez
+comprise. La clé est lue quelle que soit sa casse (`Index_TORE1`,
+`INDEX_TORE1`), jamais prise pour un autre numéro ; `Index_TORE_1` (tiret
+bas avant le numéro) est la graphie des pinces du firmware 2, jamais un
+compteur de puissance ; un compteur dont vous changez
 le mode reçoit une nouvelle fonctionnalité, qui repart de la première valeur
 lue (si vous revenez ensuite à l’ancien mode, son ancienne fonctionnalité
 repart de sa dernière valeur dans Gladys : un écart accumulé entre-temps
 peut passer comme un saut couvert par le temps) ; un compteur effacé dans le
 RT2 est une baisse, retenue jusqu’à vos deux clics. Un RT2 en firmware 2
-(qui répond `Index_TORE_Cons1`…) n’a pas de compteur de puissance : rien n’est
-lu dans ses `Index_TORE`, pas même `Index_TORE5` à `16`, et l’état le dit.
+(qui répond `Index_TORE_Cons1`, `Index_TORE_Dist1` ou `Index_TORE_<n>`, dans
+`Index=all` comme dans `Index=T`) n’a pas de compteur de puissance : rien
+n’est lu dans ses `Index_TORE`, pas même `Index_TORE5` à `16`, et l’état le
+dit.
 Un compteur d’impulsions est lu dans l’unité que vous
 indiquez : comparez la première valeur publiée au compteur. Un compteur dont
 vous changez le **type** reçoit une nouvelle fonctionnalité, qui repart de la

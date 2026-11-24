@@ -81,7 +81,19 @@ import {
 } from './constants.js';
 import { buildDevice, idsOf, parseExternalId, targetStates } from './devices.js';
 import { IndexGuard } from './guard.js';
-import { ERRORS, T, age, both, describe, join, listOf, reasonOf, shownCode, word } from './i18n.js';
+import {
+  ERRORS,
+  T,
+  age,
+  both,
+  describe,
+  join,
+  lines,
+  listOf,
+  reasonOf,
+  shownCode,
+  word,
+} from './i18n.js';
 import { PRIORITY, Rt2Client } from './rt2/client.js';
 import { Rt2Error, errorReason } from './rt2/http.js';
 import {
@@ -270,6 +282,9 @@ export class Rt2App {
     this.toreCommand = false;
     /** The last indexes read, per listed meter ("Read now"): [{ code, key, raw, why, value, feature }]. */
     this.indexReport = undefined;
+    /** The monotonic time of that read, and what meterStates did with each meter (code -> outcome). */
+    this.indexReportAt = undefined;
+    this.meterOutcomes = new Map();
     /** The monotonic time of the last read an Eco-Devices RT2 answered (its product). */
     this.productAt = undefined;
     /** The first click of "Accept the held index": { at, listedAt, list, generation }. */
@@ -1176,22 +1191,6 @@ export class Rt2App {
     const inputs = await secondary(READS.INPUTS, 'inputs');
     put(inputs.json, KINDS.INPUT, inputs.at);
     const indexes = await secondary(READS.INDEXES, 'indexes');
-    // Power counters listed but none in `Index=all` (a firmware answering them to `Index=T`
-    // only: the command of the 2017 PDF and of the firmware 3 users of 2022): one more read,
-    // within the budget of the round; its failure leaves them unread, nothing else.
-    let tores;
-    if (
-      indexes.json &&
-      this.config.clamps.size > 0 &&
-      !hasToreKeys(indexes.json) &&
-      !isFirmware2Indexes(indexes.json)
-    ) {
-      tores = await secondary(READS.TORES, 'tores');
-    }
-    // `null`: `Index=T` tried and not answered (the counters unread, never "absent").
-    for (const target of this.metersOf(indexes.json, indexes.at, tores && (tores.json ?? null))) {
-      targets.set(target.code, target);
-    }
     if ([...codes].some((c) => kindOf(c) === KINDS.PILOT)) {
       const zones = await secondary(READS.PILOT, 'zones');
       put(zones.json, KINDS.PILOT, zones.at);
@@ -1212,6 +1211,22 @@ export class Rt2App {
       const posts = await secondary(READS.POSTS, 'posts');
       put(posts.json, KINDS.POST, posts.at);
     }
+    // Power counters listed but none in `Index=all` (a firmware answering them to `Index=T`
+    // only: the command of the 2017 PDF and of the firmware 3 users of 2022): one more read,
+    // last (the groups listed before it keep their place in the budget); its failure leaves
+    // them unread, nothing else. An `Index=T` spelling the clamps of firmware 2 reads nothing.
+    let tores;
+    if (
+      indexes.json &&
+      this.config.clamps.size > 0 &&
+      !hasToreKeys(indexes.json) &&
+      !isFirmware2Indexes(indexes.json)
+    ) {
+      tores = await secondary(READS.TORES, 'tores');
+    }
+    for (const target of this.metersOf(indexes.json, indexes.at, tores)) {
+      targets.set(target.code, target);
+    }
     return { targets, unread };
   }
 
@@ -1219,8 +1234,9 @@ export class Rt2App {
    * The meters of an `Index=all` answer: a teleinformation index read above 0 (the API
    * answers them all, wired or not), a power counter or a pulse counter of the configuration,
    * and any meter with a device created (unread: no value). `json` undefined: none read this
-   * time. `tores`: the `Index=T` answer when `Index=all` held no power counter (undefined
-   * otherwise, null when it was not answered: the power counters unread). A power counter
+   * time. `tores`: `{ json, at }` of the `Index=T` read when `Index=all` held no power
+   * counter (undefined otherwise; `json` undefined: not answered, the power counters unread;
+   * the clamps of firmware 2 in it: nothing read, said). A power counter
    * above 0 but not listed is noted for the status (`unlistedClamps`); a listed meter
    * without a value is noted with why (`metersNoValue`), and every listed meter with what
    * was read (`indexReport`, for "Read now").
@@ -1242,7 +1258,9 @@ export class Rt2App {
     const report = [];
     // Firmware 2 answers `Index_TORE_Cons1-4`, `Index_TORE_Dist1-4` and `Index_TORE5-16`
     // (the clamps themselves, not the power counters of firmware 3): nothing is read from it.
-    const firmware2 = json ? isFirmware2Indexes(json) : false;
+    const firmware2 = json
+      ? isFirmware2Indexes(json) || (tores?.json !== undefined && isFirmware2Indexes(tores.json))
+      : false;
     for (const code of codes) {
       const isTore = code.startsWith('tore');
       const listed = code.startsWith('c')
@@ -1250,17 +1268,19 @@ export class Rt2App {
         : isTore
           ? this.config.clamps.has(code)
           : true;
-      const source = isTore && tores ? tores : json;
-      const entry =
-        isTore && tores === null
-          ? { key: undefined, raw: undefined, why: 'unread' }
-          : json && !(firmware2 && isTore)
-            ? indexEntry(source, code)
-            : { key: undefined, raw: undefined, why: 'absent' };
+      const source = isTore && tores ? tores.json : json;
+      const entry = !json
+        ? { key: undefined, raw: undefined, why: 'absent' }
+        : isTore && firmware2
+          ? { key: undefined, raw: undefined, why: 'firmware2' }
+          : isTore && tores && tores.json === undefined
+            ? { key: undefined, raw: undefined, why: 'unread' }
+            : indexEntry(source, code);
       const meter = meterOf(code, entry.raw, this.config.counters, this.config.clamps);
       if (isTore && !listed && indexNumber(entry.raw) > 0) unlisted.push(code);
       if (listed && !code.startsWith('ti') && json) {
-        if (meter?.value === undefined && entry.why !== 'unread') {
+        // Unread and firmware 2 are said by their own lines of the status.
+        if (meter?.value === undefined && !['unread', 'firmware2'].includes(entry.why)) {
           noValue.push({ code, why: entry.why ?? 'unreadable' });
         }
         report.push({
@@ -1282,7 +1302,7 @@ export class Rt2App {
         n: numberOf(code),
         feature: meter?.feature,
         value: json ? meter?.value : undefined,
-        at,
+        at: isTore && tores?.json !== undefined ? tores.at : at,
       });
     }
     if (json !== undefined) {
@@ -1291,6 +1311,7 @@ export class Rt2App {
       this.firmware2 = firmware2;
       this.toreCommand = tores !== undefined;
       this.indexReport = report;
+      this.indexReportAt = this.monotonic();
     }
     return out;
   }
@@ -1320,6 +1341,13 @@ export class Rt2App {
     if (this.saveFailed) this.saveMemory().catch(() => {});
     else saved = await this.saveMemory();
     if (saved) for (const [id, state] of meterStates) this.publisher.push(id, state);
+    else {
+      for (const [code, o] of this.meterOutcomes) {
+        if (o.outcome === 'published' || o.outcome === 'held') {
+          this.meterOutcomes.set(code, { outcome: 'store' });
+        }
+      }
+    }
     await this.setStatus(this.statusConnected(), this.statusMessage());
     await this.publishDevices();
     await this.flush();
@@ -1783,21 +1811,48 @@ export class Rt2App {
    */
   meterStates() {
     const out = [];
-    if (!this.statusConnected() || this.storeUnreadable) return out;
+    // What becomes of each meter read, for "Read now" (`meterOutcomes`): { outcome, kept }.
+    const outcomes = new Map();
+    this.meterOutcomes = outcomes;
+    const note = (code, outcome, kept) => outcomes.set(code, { outcome, kept });
+    const blocked = !this.statusConnected() ? 'owner' : this.storeUnreadable ? 'store' : undefined;
     for (const target of this.model.values()) {
       if (target.kind !== KINDS.METER || target.at === undefined) continue;
+      if (blocked) {
+        note(target.code, blocked);
+        continue;
+      }
       const guard = this.meterGuard(target.code, target.feature);
-      if (!guard) continue;
+      if (!guard) {
+        note(target.code, this.meterGuardMissing(target.code, target.feature));
+        continue;
+      }
       const plausible =
         target.value !== undefined && guard.accept(target.value, this.sessionAt(target.at));
       this.logHold(target.code, guard);
       const value = plausible ? target.value : guard.held ? guard.last?.value : undefined;
+      note(
+        target.code,
+        plausible ? 'published' : guard.held ? 'held' : 'none',
+        guard.held ? guard.last?.value : undefined,
+      );
       if (value === undefined) continue;
       for (const [key, state] of targetStates({ ...target, value }, new Set())) {
         out.push([idsOf(this.gladys, KINDS.METER, target.code).feature(key), state]);
       }
     }
     return out;
+  }
+
+  /** Why meterGuard gave no guard: no device, no feature on it, unit changed, /data unreadable. */
+  meterGuardMissing(code, feature) {
+    const device = this.createdDevices().find((d) => this.parseId(d.external_id)?.code === code);
+    if (!device) return 'noDevice';
+    if (!feature) return 'none';
+    const featureId = idsOf(this.gladys, KINDS.METER, code).feature(feature);
+    if (!(device.features ?? []).some((f) => f?.external_id === featureId)) return 'noFeature';
+    if (this.unitChanged.has(code)) return 'unitChanged';
+    return 'store';
   }
 
   logHold(code, guard) {
@@ -2199,13 +2254,22 @@ export class Rt2App {
     // the clicks that would start one.
     const joined = this.running !== undefined;
     if (!joined) {
-      if (mono - this.lastTestAt < TIMINGS.testCooldown) {
-        return join(this.lastMessage ?? T.connecting, this.indexReportMessage());
+      const since = mono - this.lastTestAt;
+      if (since < TIMINGS.testCooldown) {
+        return lines(
+          join(
+            T.readNow.cooldown(age(TIMINGS.testCooldown - since)),
+            this.lastMessage ?? T.connecting,
+          ),
+          this.indexReportMessage(mono, true),
+        );
       }
       this.lastTestAt = mono;
       const pause = this.pauseLeft(mono);
       if (pause > 0) return join(T.readNow.paused(age(pause)), this.lastMessage ?? T.connecting);
     }
+    // The round of the click succeeded when `round` changed: its report is the fresh one.
+    const before = this.round;
     let handle;
     const budget = new Promise((resolve) => {
       handle = this.timers.setTimeout(() => resolve('slow'), TIMINGS.testBudget);
@@ -2216,19 +2280,27 @@ export class Rt2App {
     ]);
     this.timers.clearTimeout(handle);
     if (result === 'slow') return T.test.slow;
-    return join(
-      joined ? T.readNow.joined : undefined,
-      this.lastMessage ?? T.connecting,
-      this.indexReportMessage(),
+    return lines(
+      join(joined ? T.readNow.joined : undefined, this.lastMessage ?? T.connecting),
+      this.indexReportMessage(this.monotonic(), this.round === before),
     );
   }
 
-  /** What the last indexes read gave for each listed meter (one line each), for "Read now". */
-  indexReportMessage() {
+  /**
+   * What the last indexes read gave for each listed meter (one line each: the key, the raw
+   * value, the value converted and what became of it), for "Read now". `stale`: that read is
+   * not the one of the click (the round failed, or the click was within the cooldown): said
+   * with its age, never as the read of now.
+   */
+  indexReportMessage(mono, stale = false) {
     if (this.config.counters.size === 0 && this.config.clamps.size === 0) return T.readNow.none;
-    if (this.round?.unread.includes('indexes')) return T.readNow.unread;
+    if (!stale && this.round?.unread.includes('indexes')) return T.readNow.unread;
     if (!this.indexReport) return undefined;
-    const lines = this.indexReport.map((entry) =>
+    // A fresh round whose indexes were read: its report. Else the report of an older read.
+    if (!stale && this.indexReportAt !== undefined && this.indexReportAt < this.lastReadAt) {
+      stale = true;
+    }
+    const out = this.indexReport.map((entry) =>
       T.readNow.line({
         shown: shownCode(entry.code),
         key: entry.key,
@@ -2236,9 +2308,11 @@ export class Rt2App {
         why: entry.why,
         value: entry.value,
         unit: [F.WATER, F.GAS].includes(entry.feature) ? 'm³' : 'kWh',
+        outcome: this.meterOutcomes.get(entry.code),
       }),
     );
-    return both(lines.map((l) => l.en).join('\n'), lines.map((l) => l.fr).join('\n'));
+    if (stale) out.unshift(T.readNow.stale(age(mono - this.indexReportAt)));
+    return lines(...out);
   }
 
   // --- Commands --------------------------------------------------------------------

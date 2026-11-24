@@ -17,17 +17,22 @@ the notes of the version's GitHub Release.
   for, never two reads at once: a click during a read reports that one; one
   click per 10 s, shared with "Test the connection"), then the status and,
   for each listed pulse counter and power counter, the key read, the raw
-  value and what was published (cce66, t/11448 #27).
+  value, the value converted and what became of it: published, held back
+  (the value Gladys keeps), no device, feature missing, unit changed, /data
+  (cce66, t/11448 #27). A report of an older read is marked with its age.
 - Power counters absent from `Index=all` (no `Index_TORE` key at all) are
   asked with `Index=T` (the command of the GCE documentation of 2017 and of
-  the firmware 3 users of 2022), within the budget of the round; the status
-  says so.
+  the firmware 3 users of 2022), last in the round, within its budget; the
+  status says so. An `Index=T` answering the clamps of firmware 2 reads
+  nothing.
 
 ### Changed
 
-- The keys of the indexes are found whatever their spelling (`Index_TORE1`,
-  `Index_TORE_1`, `INDEX_TORE1`, `INDEX_C1`), never mistaken for another
-  number; `null`, `""`, `"--"`, `"N/A"` are "no value".
+- The keys of the indexes are found whatever their case (`Index_TORE1`,
+  `INDEX_TORE1`, `INDEX_C1`), never mistaken for another number;
+  `Index_TORE_<n>` (an underscore before the number) is the spelling of the
+  clamps of firmware 2, never a power counter; `null`, `""`, `"--"`, `"N/A"`
+  are "no value".
 - A listed counter without a value is named in the status with why: key
   absent from the answer, value "--" (bound to no clamp, or erased), value 0
   (counted nothing yet: no clamp, a clamp facing the wrong way, a mode not

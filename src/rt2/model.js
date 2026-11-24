@@ -206,10 +206,12 @@ const EMPTY_TEXTS = new Set(['', '-', '--', '---', '----', 'n/a', 'na', 'null', 
  * The entry of a meter in an `Index=all` (or `Index=T`) answer, whatever the
  * spelling of its key, and why it gives no value when it does not:
  * `{ key, raw, why }`. The key is `Index_TORE3` (firmware 3; `Index_TI1`,
- * `Index_C1`), taken too as `Index_TORE_3`, `INDEX_TORE3`, `Index_Tore3` or
- * `index_tore3` (firmware 2 spelled the clamps `Index_TORE_Cons1`, `Get=all`
- * spells the pulse counters `INDEX_C1`: a spelling is never a reason to lose
- * an index). `why`:
+ * `Index_C1`), taken too as `INDEX_TORE3`, `Index_Tore3`, `index_tore3`,
+ * `Index_TI_1` or `INDEX_C1` (`Get=all` spells the pulse counters so: a case
+ * is never a reason to lose an index), never as `Index_TORE_3`: an underscore
+ * before the number is the spelling of firmware 2 (its clamps
+ * `Index_TORE_Cons1`, `Index_TORE_Dist1`, `Index_TORE_<n>`: never a power
+ * counter). `why`:
  *   - `absent`: no such key in the answer (a firmware that does not give it);
  *   - `empty`: null, "", "--" (status.json shows "--" for a power counter
  *     bound to no clamp, or erased), "N/A";
@@ -225,7 +227,8 @@ export function indexEntry(json, code) {
     return { key: undefined, raw: undefined, why: 'absent' };
   }
   const [, prefix, n] = /^(ti|tore|c)(\d{1,2})$/.exec(code);
-  const pattern = new RegExp(`^index_?${prefix}_?${n}$`, 'i');
+  // `Index_TORE_3` is the spelling of firmware 2 (a clamp, not a power counter): never a tore.
+  const pattern = new RegExp(`^index_?${prefix}${prefix === 'tore' ? '' : '_?'}${n}$`, 'i');
   let key;
   if (Object.hasOwn(json, exact)) key = exact;
   else key = Object.keys(json).find((k) => pattern.test(k));
@@ -249,13 +252,16 @@ export function indexEntry(json, code) {
 export const hasToreKeys = (json) =>
   json !== null &&
   typeof json === 'object' &&
-  Object.keys(json).some((k) => /^index_?tore_?\d/i.test(k));
+  Object.keys(json).some((k) => /^index_?tore\d/i.test(k));
 
-/** True when the answer spells the clamps as firmware 2 did (`Index_TORE_Cons1`): no power counter in it. */
+/**
+ * True when the answer spells the clamps as firmware 2 did (`Index_TORE_Cons1`,
+ * `Index_TORE_Dist1`, `Index_TORE_5`): no power counter in it, nothing read.
+ */
 export const isFirmware2Indexes = (json) =>
   json !== null &&
   typeof json === 'object' &&
-  Object.keys(json).some((k) => /^index_?tore_?(cons|dist)\d/i.test(k));
+  Object.keys(json).some((k) => /^index_?tore_(cons|dist)?\d/i.test(k));
 
 const round3 = (value) => Math.round(value * 1000) / 1000;
 

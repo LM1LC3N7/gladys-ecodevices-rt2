@@ -60,10 +60,11 @@ test('indexEntry: the key whatever its spelling (Index_TORE_3, INDEX_TORE3, inde
   const exact = indexEntry({ Index_TORE3: 1_654_075 }, 'tore3');
   assert.deepEqual(exact, { key: 'Index_TORE3', raw: 1_654_075, why: undefined });
   assert.equal(
-    indexEntry({ Index_TORE_3: 12 }, 'tore3').key,
-    'Index_TORE_3',
-    'firmware 2 spelling',
+    indexEntry({ Index_TORE_3: 12 }, 'tore3').why,
+    'absent',
+    'the spelling of firmware 2: never a power counter',
   );
+  assert.equal(indexEntry({ Index_TI_1: 12 }, 'ti1').key, 'Index_TI_1');
   assert.equal(indexEntry({ INDEX_TORE3: 12 }, 'tore3').key, 'INDEX_TORE3');
   assert.equal(indexEntry({ index_tore3: 12 }, 'tore3').key, 'index_tore3');
   assert.equal(indexEntry({ INDEX_C1: 149_399 }, 'c1').key, 'INDEX_C1', 'Get=all spelling');
@@ -96,16 +97,24 @@ test('indexEntry: the key whatever its spelling (Index_TORE_3, INDEX_TORE3, inde
     false,
     'a clamp of firmware 2 is no power counter',
   );
+  assert.equal(hasToreKeys({ Index_TORE_1: 0 }), false);
+  assert.equal(hasToreKeys({ INDEX_TORE1: 0 }), true);
+  assert.equal(
+    isFirmware2Indexes({ Index_TORE_1: 0 }),
+    true,
+    'an underscore before the number: firmware 2',
+  );
+  assert.equal(isFirmware2Indexes({ Index_TORE_Cons1: 0 }), true);
   assert.equal(hasToreKeys({ Index_TI1: 0 }), false);
   assert.equal(isFirmware2Indexes({ Index_TORE_Dist2: 0 }), true);
   assert.equal(isFirmware2Indexes({ Index_TORE1: 0 }), false);
 });
 
-test('reconstructed: the keys in another spelling (Index_TORE_1, INDEX_C1) are read all the same', async () => {
+test('reconstructed: the keys in another case (INDEX_TORE1, INDEX_C1) are read all the same, and Index=T is not sent', async () => {
   const all = indexAll();
   delete all.Index_TORE1;
   delete all.Index_C1;
-  all.Index_TORE_1 = 1_654_075;
+  all.INDEX_TORE1 = 1_654_075;
   all.INDEX_C1 = 149_399;
   const { app, gladys, start, wait, states } = await setup({
     world: worldWith(all),
@@ -117,6 +126,96 @@ test('reconstructed: the keys in another spelling (Index_TORE_1, INDEX_C1) are r
   assert.deepEqual(states(TORE(1)), [1654.075]);
   assert.deepEqual(states(F('meter', 'c1', 'water-index')), [149.399]);
   assert.doesNotMatch(message(gladys), /without a value/);
+  assert.doesNotMatch(message(gladys), /Index=T/);
+  app.stop();
+});
+
+test('review r1 S3: Index_TORE_1..16 in Index=all (the clamps of firmware 2, no Cons/Dist key): nothing read as a power counter, said, no Index=T', async () => {
+  const all = indexAll();
+  for (let n = 1; n <= 20; n += 1) delete all[`Index_TORE${n}`];
+  for (let n = 1; n <= 16; n += 1) all[`Index_TORE_${n}`] = n === 3 ? 300_003 : 0;
+  const world = worldWith(all, { ...OK, Index_TORE3: 300_003 });
+  const { app, gladys, start, wait, states } = await setup({
+    world,
+    config: { ...CONFIG, clamps: 'T3:production' },
+    devices: [meter('tore3', 'production-index')],
+  });
+  await start();
+  await wait(15 * SECOND);
+  assert.deepEqual(states(TORE(3, 'production-index')), [], 'a clamp index never a power counter');
+  assert.match(message(gladys), /answers the clamps of firmware 2 \(Index_TORE_Cons1\)/);
+  assert.ok(!world.requests.some((r) => r.path.includes('Index=T')), 'firmware 2: no Index=T');
+  assert.doesNotMatch(message(gladys), /without a value/);
+  app.stop();
+});
+
+test('review r1 S2: Index=all without tore keys, Index=T answering the clamps of firmware 2 (Index_TORE_Cons1-4, Dist1-4, TORE5-16): nothing read, said', async () => {
+  const all = indexAll();
+  for (let n = 1; n <= 20; n += 1) delete all[`Index_TORE${n}`];
+  const tores = { ...OK };
+  for (let n = 1; n <= 4; n += 1) {
+    tores[`Index_TORE_Cons${n}`] = 271_232;
+    tores[`Index_TORE_Dist${n}`] = 660_664;
+  }
+  for (let n = 5; n <= 16; n += 1) tores[`Index_TORE${n}`] = n === 5 ? 512_345 : 0;
+  const world = worldWith(all, tores);
+  const { app, gladys, start, wait, states, act } = await setup({
+    world,
+    config: { ...CONFIG, clamps: 'T5:injection, T1' },
+    devices: [meter('tore5', 'injection-index'), meter('tore1')],
+  });
+  await start();
+  await wait(15 * SECOND);
+  assert.ok(
+    world.requests.some((r) => r.path.includes('Index=T')),
+    'Index=T tried',
+  );
+  assert.deepEqual(
+    states(TORE(5, 'injection-index')),
+    [],
+    'TORE5 of firmware 2 never an injection index',
+  );
+  assert.deepEqual(states(TORE(1)), []);
+  assert.match(message(gladys), /answers the clamps of firmware 2 \(Index_TORE_Cons1\)/);
+  assert.doesNotMatch(message(gladys), /without a value/);
+  const answer = await act(gladys.fake.action('read_now', {}));
+  assert.match(
+    answer.data.message.en,
+    /\nTORE1: the clamps of firmware 2 answered \(Index_TORE_…\): no power counter read\nTORE5: the clamps/,
+  );
+  assert.match(answer.data.message.fr, /\nTORE1 : les pinces du firmware 2 répondent/);
+  app.stop();
+});
+
+test('firmware 2 in Index=all with Cons/Dist keys only: no Index=T sent', async () => {
+  const all = indexAll();
+  for (let n = 1; n <= 20; n += 1) delete all[`Index_TORE${n}`];
+  all.Index_TORE_Cons1 = 271_232;
+  all.Index_TORE_Dist1 = 660_664;
+  const world = worldWith(all, { ...OK, Index_TORE1: 5 });
+  const { app, start, wait } = await setup({ world, config: { ...CONFIG, clamps: 'T1' } });
+  await start();
+  await wait(15 * SECOND);
+  assert.ok(!world.requests.some((r) => r.path.includes('Index=T')));
+  app.stop();
+});
+
+test('Index=T leaves last: the zones listed keep their place in the budget (4.9 s per request)', async () => {
+  const all = indexAll();
+  for (let n = 1; n <= 20; n += 1) delete all[`Index_TORE${n}`];
+  const world = worldWith(all, { ...OK, Index_TORE1: 5 });
+  world.latency = 4_900;
+  const { app, start, wait } = await setup({
+    world,
+    config: { ...CONFIG, clamps: 'T1', extensions: 'FP1' },
+  });
+  await start();
+  await wait(30 * SECOND);
+  const order = world.requests.map((r) => /(Get=\w+|Index=\w+)/.exec(r.path)?.[1]);
+  const fp = order.indexOf('Get=FP');
+  const t = order.indexOf('Index=T');
+  assert.ok(fp >= 0, 'the zones read: ' + order.join(' '));
+  assert.ok(t === -1 || t > fp, 'Index=T after Get=FP, or not sent: ' + order.join(' '));
   app.stop();
 });
 
@@ -138,7 +237,7 @@ test('reconstructed: each reason for no value is said as such (absent, "--", nul
   await wait(15 * SECOND);
   for (let n = 1; n <= 6; n += 1) assert.deepEqual(states(TORE(n)), [], `TORE${n}: never 0`);
   const en = message(gladys);
-  assert.match(en, /TORE1: key absent from the Index=all answer/);
+  assert.match(en, /TORE1: key absent from the answer \(Index=all, or Index=T;/);
   assert.match(en, /TORE2, TORE3: value "--" \(a power counter bound to no clamp/);
   assert.match(
     en,
@@ -147,12 +246,16 @@ test('reconstructed: each reason for no value is said as such (absent, "--", nul
   assert.match(en, /TORE5: value 4294967295 \(an entry with nothing behind it\)/);
   assert.match(en, /TORE6: value not understood/);
   const fr = message(gladys, 'fr');
-  assert.match(fr, /TORE1 : clé absente de la réponse Index=all/);
+  assert.match(fr, /TORE1 : clé absente de la réponse \(Index=all, ou Index=T ;/);
   assert.match(fr, /TORE2, TORE3 : valeur « -- » \(compteur de puissance relié à aucune pince/);
   assert.match(fr, /derrière\) ; TORE6 : valeur non comprise/, 'French separators');
   assert.match(fr, /TORE4 : valeur 0 \(le compteur n’a encore rien compté/);
   assert.match(fr, /TORE6 : valeur non comprise/);
-  assert.doesNotMatch(en, /Index=T/, 'Index=all held the power counters: no second command');
+  assert.doesNotMatch(
+    en,
+    /read with Index=T instead/,
+    'Index=all held the power counters: no second command',
+  );
   app.stop();
 });
 

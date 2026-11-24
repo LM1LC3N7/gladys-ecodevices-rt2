@@ -427,3 +427,20 @@ Still open, to ask on the forum (short, in French):
 - A typo on a code already listed does not neutralise that code.
 - "×2" and "not listed" can show together.
 - The firmware 2 note shows even when no counter is listed.
+
+## Decisions, "Read now" and the power counters without a value (2026-11-24, from cce66's #25-#28 and review rt2-readnow-r1)
+
+- `Index=all` without any `Index_TORE` key: `Index=T` asked, last in the round
+  (the groups listed keep their place in the budget). An answer spelling the
+  clamps of firmware 2 (`Index_TORE_Cons1`, `Index_TORE_Dist1`, `Index_TORE_<n>`)
+  reads nothing, in `Index=all` as in `Index=T` (review r1, I1).
+- Keys found whatever their case, never `Index_TORE_<n>` for a power counter.
+- A listed meter without a value is said with why (absent, "--", 0, 4294967295,
+  not understood); "Read now" reports the key, the raw value, the converted
+  value and what meterStates did (published, held, no device, no feature, unit
+  changed, /data, other box); an older report is marked with its age.
+- Each refused entry of the two fields is said with what is wrong; the SDK has
+  no per-field validation message.
+- Open: cce66's raw `Index=all` (asked in #28) to know which variant his RT2
+  answers; `Index=T` is sent again at every round while it fails or holds no
+  tore key (review r1, minor 2: remember the failure for the session).

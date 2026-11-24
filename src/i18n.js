@@ -10,6 +10,12 @@ export const word = (texts, language) => texts[language] ?? texts.en;
 
 export const both = (en, fr) => ({ en, fr });
 
+/** Several messages, one per line, in each language. */
+export const lines = (...messages) => {
+  const parts = messages.filter(Boolean);
+  return both(parts.map((m) => m.en).join('\n'), parts.map((m) => m.fr).join('\n'));
+};
+
 /** Several messages one after the other, in each language. */
 export const join = (...messages) => {
   const parts = messages.filter(Boolean);
@@ -31,12 +37,12 @@ export function age(ms) {
 }
 
 /** Lists the first 5 entries, then "and N more". */
-export function listOf(entries) {
+export function listOf(entries, separator = ', ') {
   const shown = entries.slice(0, 5);
   const more = entries.length - shown.length;
   return both(
-    shown.join(', ') + (more > 0 ? ` and ${more} more` : ''),
-    shown.join(', ') + (more > 0 ? ` et ${more} autre(s)` : ''),
+    shown.join(separator) + (more > 0 ? ` and ${more} more` : ''),
+    shown.join(separator) + (more > 0 ? ` et ${more} autre(s)` : ''),
   );
 }
 
@@ -209,8 +215,8 @@ export const T = {
       `L’Eco-Devices ne répond pas (${reason.fr}) : nouvel essai dans ${wait.fr}.`,
     ),
   refused: both(
-    'The Eco-Devices refused the API key: no read until the key changes or "Test the connection" succeeds.',
-    'L’Eco-Devices a refusé la clé d’API : plus de lecture tant que la clé ne change pas ou que « Tester la connexion » n’aboutit pas.',
+    'The Eco-Devices refused the API key: no read until the key changes or "Test the connection" / "Read now" succeeds.',
+    'L’Eco-Devices a refusé la clé d’API : plus de lecture tant que la clé ne change pas ou que « Tester la connexion » / « Lire maintenant » n’aboutit pas.',
   ),
   relayErrors: (list) =>
     both(`Relays not understood: ${list.en}.`, `Relais non compris : ${list.fr}.`),
@@ -267,8 +273,18 @@ export const T = {
   },
   counterErrors: (details) =>
     both(
-      `Pulse counters not understood: ${listOf(details.map((d) => T.counterError(d).en)).en}.`,
-      `Compteurs d’impulsions non compris : ${listOf(details.map((d) => T.counterError(d).fr)).fr}.`,
+      `Pulse counters not understood: ${
+        listOf(
+          details.map((d) => T.counterError(d).en),
+          ' · ',
+        ).en
+      }.`,
+      `Compteurs d’impulsions non compris : ${
+        listOf(
+          details.map((d) => T.counterError(d).fr),
+          ' · ',
+        ).fr
+      }.`,
     ),
   /** One refused entry of "Power counters": `{ entry, reason, word }` (parseClamps). */
   clampError: ({ entry, reason, word }) => {
@@ -286,8 +302,8 @@ export const T = {
         );
       case 'mode':
         return q(
-          `"${word}" is not a mode (consumption, production, injection, drawn); give the name to the device in Gladys`,
-          `« ${word} » n’est pas un mode (consommation, production, injection, soutirage) ; donnez le nom à l’appareil dans Gladys`,
+          `"${word}" is not a mode (consumption, production, injection, drawn; a differential counter is not supported: do not list it); a name is given to the device in Gladys`,
+          `« ${word} » n’est pas un mode (consommation, production, injection, soutirage ; un compteur différentiel n’est pas pris en charge : ne le listez pas) ; le nom se donne à l’appareil dans Gladys`,
         );
       default:
         return q(
@@ -298,8 +314,18 @@ export const T = {
   },
   clampErrors: (details) =>
     both(
-      `Power counters not understood: ${listOf(details.map((d) => T.clampError(d).en)).en}.`,
-      `Compteurs de puissance non compris : ${listOf(details.map((d) => T.clampError(d).fr)).fr}.`,
+      `Power counters not understood: ${
+        listOf(
+          details.map((d) => T.clampError(d).en),
+          ' · ',
+        ).en
+      }.`,
+      `Compteurs de puissance non compris : ${
+        listOf(
+          details.map((d) => T.clampError(d).fr),
+          ' · ',
+        ).fr
+      }.`,
     ),
   relaysReadOnly: (count) =>
     count === 1
@@ -370,8 +396,8 @@ export const T = {
   metersNoValue: (byWhy) => {
     const texts = {
       absent: both(
-        'key absent from the Index=all answer (a firmware without power counters? "Read now" shows the keys read)',
-        'clé absente de la réponse Index=all (un firmware sans compteurs de puissance ? « Lire maintenant » montre les clés lues)',
+        'key absent from the answer (Index=all, or Index=T; a firmware without power counters? "Read now" shows the keys read)',
+        'clé absente de la réponse (Index=all, ou Index=T ; un firmware sans compteurs de puissance ? « Lire maintenant » montre les clés lues)',
       ),
       empty: both(
         'value "--" (a power counter bound to no clamp in the "Compteurs de puissance" page of the RT2, or erased; a pulse counter without a value)',
@@ -543,8 +569,13 @@ export const T = {
   readNow: {
     paused: (wait) =>
       both(
-        `The Eco-Devices asked to wait, or the last reads failed: no read before ${wait.en}.`,
+        `The Eco-Devices asked to wait, or the last reads failed: no read for another ${wait.en}.`,
         `L’Eco-Devices a demandé d’attendre, ou les dernières lectures ont échoué : pas de lecture avant ${wait.fr}.`,
+      ),
+    cooldown: (wait) =>
+      both(
+        `One click per 10 s: try again in ${wait.en}.`,
+        `Un clic par 10 s : réessayez dans ${wait.fr}.`,
       ),
     joined: both(
       'A read was already running: here is what it gave.',
@@ -555,11 +586,19 @@ export const T = {
       'Les index (Index=all) n’ont pas été lus cette fois.',
     ),
     none: both(
-      'No pulse counter nor power counter listed in the configuration.',
+      'No pulse counter or power counter listed in the configuration.',
       'Aucun compteur d’impulsions ni compteur de puissance listé dans la configuration.',
     ),
-    /** One listed meter: its key, the raw value read and what became of it. */
-    line: ({ shown, key, raw, why, value, unit }) => {
+    stale: (ago) =>
+      both(
+        `Last read of the indexes ${ago.en} ago (not the read of this click):`,
+        `Dernière lecture des index il y a ${ago.fr} (pas celle de ce clic) :`,
+      ),
+    /**
+     * One listed meter: its key, the raw value read, the value converted and what became
+     * of it (`outcome`: what meterStates did, see src/app.js).
+     */
+    line: ({ shown, key, raw, why, value, unit, outcome }) => {
       const rawText = raw === undefined ? '' : String(raw).slice(0, 24);
       const whys = {
         absent: both('key absent from the answer', 'clé absente de la réponse'),
@@ -567,18 +606,47 @@ export const T = {
         zero: both('0, counts nothing yet', '0, ne compte encore rien'),
         unbound: both('4294967295, nothing behind it', '4294967295, rien derrière'),
         unreadable: both('not understood', 'non compris'),
+        unread: both('not read this time (Index=T)', 'non lu cette fois (Index=T)'),
+        firmware2: both(
+          'the clamps of firmware 2 answered (Index_TORE_…): no power counter read',
+          'les pinces du firmware 2 répondent (Index_TORE_…) : aucun compteur de puissance lu',
+        ),
       };
-      if (why === 'absent')
-        return both(`${shown}: ${whys.absent.en}`, `${shown} : ${whys.absent.fr}`);
+      const outcomes = {
+        published: both('published', 'publié'),
+        held: both(
+          `held back (Gladys keeps ${number(outcome?.kept, 'en')} ${unit})`,
+          `retenu (Gladys garde ${number(outcome?.kept, 'fr')} ${unit})`,
+        ),
+        noDevice: both(
+          'not published: no device created in Gladys (Discover)',
+          'non publié : aucun appareil créé dans Gladys (Découverte)',
+        ),
+        noFeature: both(
+          'not published: the feature is missing on the device ("Update" in Discover)',
+          'non publié : la fonctionnalité manque sur l’appareil (« Mettre à jour » dans Découverte)',
+        ),
+        unitChanged: both('not published: unit changed', 'non publié : unité changée'),
+        store: both('not published (/data)', 'non publié (/data)'),
+        owner: both(
+          'not published: not the Eco-Devices of the devices',
+          'non publié : pas l’Eco-Devices des appareils',
+        ),
+      };
+      if (why === 'absent' || why === 'unread' || why === 'firmware2') {
+        return both(`${shown}: ${whys[why].en}`, `${shown} : ${whys[why].fr}`);
+      }
       if (why) {
+        const w = whys[why] ?? whys.unreadable;
         return both(
-          `${shown} (${key}): ${whys[why].en} [${rawText}]`,
-          `${shown} (${key}) : ${whys[why].fr} [${rawText}]`,
+          `${shown} (${key}): ${w.en} [${rawText}]`,
+          `${shown} (${key}) : ${w.fr} [${rawText}]`,
         );
       }
+      const o = outcomes[outcome?.outcome] ?? both('not published', 'non publié');
       return both(
-        `${shown} (${key}): ${rawText} read, ${number(value, 'en')} ${unit} published`,
-        `${shown} (${key}) : ${rawText} lu, ${number(value, 'fr')} ${unit} publié`,
+        `${shown} (${key}): ${rawText} read, converted to ${number(value, 'en')} ${unit}, ${o.en}`,
+        `${shown} (${key}) : ${rawText} lu, converti en ${number(value, 'fr')} ${unit}, ${o.fr}`,
       );
     },
   },
